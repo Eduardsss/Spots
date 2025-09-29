@@ -1,0 +1,34 @@
+CREATE DATABASE IF NOT EXISTS spotz_db;
+USE spotz_db;
+
+CREATE TABLE IF NOT EXISTS users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(50) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  profile_image LONGTEXT NULL,
+  role ENUM('user','admin') NOT NULL DEFAULT 'user',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS spots (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  image LONGTEXT,
+  lat DOUBLE NOT NULL,
+  lng DOUBLE NOT NULL,
+  status ENUM('public','private') NOT NULL DEFAULT 'public',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS spot_likes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  spot_id INT NOT NULL,
+  user_id INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_like (spot_id, user_id),
+  FOREIGN KEY (spot_id) REFERENCES spots(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
