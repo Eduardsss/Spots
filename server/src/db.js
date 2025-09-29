@@ -13,11 +13,4 @@ const pool = mysql.createPool({
   queueLimit: 0,
 });
 
-const getPool = () => pool;
-
-const query = (sql, params) => pool.execute(sql, params);
-
-module.exports = {
-  getPool,
-  query,
-};
+module.exports = pool;
