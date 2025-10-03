@@ -1,6 +1,7 @@
 import {
   ChangeEvent,
   FormEvent,
+  KeyboardEvent,
   useEffect,
   useMemo,
   useState,
@@ -16,7 +17,12 @@ import {
 import { SpotComments } from '../components/SpotComments';
 import { TagInput } from '../components/TagInput';
 import { apiFetch } from '../lib/api';
-import { areTagListsEqual, mergeTagLists, MAX_TAGS_PER_SPOT } from '../lib/tags';
+import {
+  areTagListsEqual,
+  mergeTagLists,
+  MAX_TAGS_PER_SPOT,
+  normalizeTagName,
+} from '../lib/tags';
 import { palette, radii, shadows, transitions } from '../styles/theme';
 
 type AuthUser = {
@@ -51,6 +57,11 @@ type SpotFormValues = {
   status: 'public' | 'private';
   image: string | null;
   tags: string[];
+};
+
+type OwnerOption = {
+  id: number;
+  username: string;
 };
 
 type SpotFormSubmission = SpotFormValues & {
@@ -88,6 +99,31 @@ type NotificationState = {
 
 type TagsResponse = {
   tags: string[];
+};
+
+const mergeOwnerLists = (current: OwnerOption[], incoming: OwnerOption[]): OwnerOption[] => {
+  if (!incoming.length) {
+    return current;
+  }
+
+  const map = new Map<number, OwnerOption>();
+  current.forEach((owner) => {
+    map.set(owner.id, owner);
+  });
+
+  let changed = false;
+  incoming.forEach((owner) => {
+    if (!map.has(owner.id) || map.get(owner.id)?.username !== owner.username) {
+      map.set(owner.id, owner);
+      changed = true;
+    }
+  });
+
+  if (!changed) {
+    return current;
+  }
+
+  return Array.from(map.values()).sort((a, b) => a.username.localeCompare(b.username));
 };
 
 const MAP_OPTIONS: google.maps.MapOptions = {
@@ -429,6 +465,50 @@ export default function MapPage() {
   const [notification, setNotification] = useState<NotificationState | null>(null);
   const [center, setCenter] = useState(DEFAULT_CENTER);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'public' | 'private' | 'mine'>('all');
+  const [ownerFilter, setOwnerFilter] = useState<'any' | 'me' | number>('any');
+  const [tagFilterInput, setTagFilterInput] = useState('');
+  const [tagFilter, setTagFilter] = useState('');
+  const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([]);
+
+  const ownerIdForQuery = useMemo(() => {
+    if (ownerFilter === 'me') {
+      return currentUser ? String(currentUser.id) : '';
+    }
+
+    if (typeof ownerFilter === 'number') {
+      return Number.isNaN(ownerFilter) ? '' : String(ownerFilter);
+    }
+
+    return '';
+  }, [ownerFilter, currentUser]);
+
+  const spotsQuery = useMemo(() => {
+    const params = new URLSearchParams();
+
+    if (statusFilter === 'mine') {
+      if (currentUser) {
+        params.set('status', 'mine');
+      }
+    } else if (statusFilter === 'public' || statusFilter === 'private') {
+      params.set('visibility', statusFilter);
+    }
+
+    if (ownerIdForQuery) {
+      params.set('ownerId', ownerIdForQuery);
+    }
+
+    if (tagFilter) {
+      params.set('tag', tagFilter);
+    }
+
+    return params.toString();
+  }, [statusFilter, ownerIdForQuery, tagFilter, currentUser]);
+
+  const spotsEndpoint = useMemo(
+    () => (spotsQuery ? `/spots?${spotsQuery}` : '/spots'),
+    [spotsQuery]
+  );
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'spotz-map-loader',
@@ -466,6 +546,21 @@ export default function MapPage() {
   }, []);
 
   useEffect(() => {
+    if (!currentUser) {
+      setStatusFilter((previous) => (previous === 'mine' || previous === 'private' ? 'all' : previous));
+      setOwnerFilter((previous) => (previous === 'me' ? 'any' : previous));
+      return;
+    }
+
+    setOwnerOptions((current) => {
+      if (current.some((owner) => owner.id === currentUser.id)) {
+        return current;
+      }
+      return mergeOwnerLists(current, [{ id: currentUser.id, username: currentUser.username }]);
+    });
+  }, [currentUser]);
+
+  useEffect(() => {
     let ignore = false;
 
     const fetchTags = async () => {
@@ -494,15 +589,24 @@ export default function MapPage() {
     const fetchSpots = async () => {
       setLoading(true);
       setFetchError('');
+      setSelectedSpotId(null);
       try {
-        const response = await apiFetch<SpotsResponse>('/spots');
+        const response = await apiFetch<SpotsResponse>(spotsEndpoint);
         if (!ignore) {
-          setSpots(response.spots ?? []);
-          if (response.spots) {
-            const collected = response.spots.flatMap((spot) => spot.tags ?? []);
-            if (collected.length) {
-              setAvailableTags((current) => mergeTagLists(current, collected));
+          const nextSpots = response.spots ?? [];
+          setSpots(nextSpots);
+
+          if (nextSpots.length) {
+            const collectedTags = nextSpots.flatMap((spot) => spot.tags ?? []);
+            if (collectedTags.length) {
+              setAvailableTags((current) => mergeTagLists(current, collectedTags));
             }
+
+            const owners = nextSpots.map((spot) => ({
+              id: spot.owner.id,
+              username: spot.owner.username,
+            }));
+            setOwnerOptions((current) => mergeOwnerLists(current, owners));
           }
         }
       } catch (error) {
@@ -510,6 +614,7 @@ export default function MapPage() {
           const message =
             error instanceof Error ? error.message : 'Failed to load spots. Please try again.';
           setFetchError(message);
+          setSpots([]);
         }
       } finally {
         if (!ignore) {
@@ -523,7 +628,7 @@ export default function MapPage() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [spotsEndpoint]);
 
   useEffect(() => {
     if (!notification || typeof window === 'undefined') {
@@ -538,6 +643,51 @@ export default function MapPage() {
     () => (selectedSpotId ? spots.find((spot) => spot.id === selectedSpotId) ?? null : null),
     [selectedSpotId, spots]
   );
+
+  const handleStatusFilterChange = (nextValue: string) => {
+    if (nextValue === 'public' || nextValue === 'private' || nextValue === 'mine' || nextValue === 'all') {
+      setStatusFilter(nextValue);
+    }
+  };
+
+  const handleOwnerFilterChange = (nextValue: string) => {
+    if (nextValue === 'any' || nextValue === 'me') {
+      setOwnerFilter(nextValue);
+      return;
+    }
+
+    const numeric = Number(nextValue);
+    setOwnerFilter(Number.isNaN(numeric) ? 'any' : numeric);
+  };
+
+  const handleTagFilterApply = () => {
+    const normalized = normalizeTagName(tagFilterInput);
+    if (normalized) {
+      setTagFilter(normalized);
+      setTagFilterInput(normalized);
+    } else {
+      setTagFilter('');
+      setTagFilterInput('');
+    }
+  };
+
+  const handleTagFilterInputChange = (value: string) => {
+    setTagFilterInput(value);
+  };
+
+  const handleTagFilterKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      handleTagFilterApply();
+    }
+  };
+
+  const handleClearFilters = () => {
+    setStatusFilter('all');
+    setOwnerFilter('any');
+    setTagFilter('');
+    setTagFilterInput('');
+  };
 
   const handleMapClick = (event: google.maps.MapMouseEvent) => {
     if (!event.latLng) {
@@ -902,7 +1052,6 @@ export default function MapPage() {
     );
   };
 
-
   if (loadError) {
     return (
       <div
@@ -923,6 +1072,12 @@ export default function MapPage() {
       </div>
     );
   }
+
+  const hasActiveFilters =
+    statusFilter !== 'all' || ownerFilter !== 'any' || Boolean(tagFilter);
+  const canSeePrivate = Boolean(currentUser);
+  const ownerFilterValue =
+    ownerFilter === 'any' || ownerFilter === 'me' ? ownerFilter : String(ownerFilter);
 
   return (
     <div style={{ height: 'calc(100vh - 160px)', minHeight: '520px', position: 'relative' }}>
@@ -966,6 +1121,138 @@ export default function MapPage() {
           {fetchError}
         </div>
       ) : null}
+
+      <div
+        style={{
+          position: 'absolute',
+          top: 20,
+          left: 20,
+          zIndex: 30,
+          pointerEvents: 'none',
+          maxWidth: '340px',
+        }}
+      >
+        <div
+          className="spotz-card"
+          style={{
+            padding: '18px',
+            borderRadius: radii.lg,
+            border: `1px solid ${palette.border}`,
+            boxShadow: shadows.soft,
+            background: 'rgba(15, 23, 42, 0.82)',
+            backdropFilter: 'var(--backdrop-blur)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '14px',
+            pointerEvents: 'auto',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+            }}
+          >
+            <h2 style={{ margin: 0, fontSize: '16px', color: palette.textPrimary }}>Map filters</h2>
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              disabled={!hasActiveFilters}
+              className="spotz-btn spotz-btn--ghost"
+              style={{
+                padding: '6px 12px',
+                borderRadius: radii.pill,
+                fontSize: '13px',
+                opacity: hasActiveFilters ? 1 : 0.5,
+              }}
+            >
+              Clear
+            </button>
+          </div>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: palette.textPrimary }}>
+            Visibility
+            <select
+              value={statusFilter}
+              onChange={(event) => handleStatusFilterChange(event.target.value)}
+              className="spotz-input"
+              style={{ cursor: 'pointer' }}
+            >
+              <option value="all">All spots</option>
+              <option value="public">Public only</option>
+              <option value="private" disabled={!canSeePrivate}>
+                Private only
+              </option>
+              <option value="mine" disabled={!canSeePrivate}>
+                Only my spots
+              </option>
+            </select>
+            {!canSeePrivate ? (
+              <span style={{ fontSize: '11px', color: palette.textMuted }}>
+                Sign in to view private or personal spots.
+              </span>
+            ) : null}
+          </label>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: palette.textPrimary }}>
+            Owner
+            <select
+              value={ownerFilterValue}
+              onChange={(event) => handleOwnerFilterChange(event.target.value)}
+              className="spotz-input"
+              style={{ cursor: 'pointer' }}
+            >
+              <option value="any">Any owner</option>
+              {currentUser ? <option value="me">Only me</option> : null}
+              {ownerOptions.map((owner) => (
+                <option key={owner.id} value={String(owner.id)}>
+                  {owner.username}
+                  {currentUser && owner.id === currentUser.id ? ' (you)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: palette.textPrimary }}>
+            <span>Category</span>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                value={tagFilterInput}
+                onChange={(event) => handleTagFilterInputChange(event.target.value)}
+                onKeyDown={handleTagFilterKeyDown}
+                placeholder="#nature"
+                className="spotz-input"
+                style={{ flex: 1 }}
+                list="map-tag-options"
+              />
+              <button
+                type="button"
+                onClick={handleTagFilterApply}
+                className="spotz-btn spotz-btn--outline"
+                style={{ padding: '8px 14px', borderRadius: radii.md }}
+              >
+                Apply
+              </button>
+            </div>
+            {tagFilter ? (
+              <span style={{ fontSize: '12px', color: palette.accent }}>
+                Filtering by <strong>{tagFilter}</strong>
+              </span>
+            ) : (
+              <span style={{ fontSize: '12px', color: palette.textMuted }}>
+                Choose a tag or enter your own to highlight matching spots.
+              </span>
+            )}
+            <datalist id="map-tag-options">
+              {availableTags.map((tag) => (
+                <option key={tag} value={tag} />
+              ))}
+            </datalist>
+          </div>
+        </div>
+      </div>
 
       {isLoaded ? (
         <div style={MAP_WRAPPER_STYLE}>

@@ -39,6 +39,30 @@ const mapCommentRow = (row) => ({
 
 const MAX_TAGS_PER_SPOT = 8;
 
+const collectTagFilters = (query) => {
+  const values = [];
+
+  const addValue = (input) => {
+    if (Array.isArray(input)) {
+      input.forEach((item) => addValue(item));
+    } else if (typeof input === "string") {
+      input
+        .split(",")
+        .map((part) => part.trim())
+        .forEach((part) => {
+          if (part) {
+            values.push(part);
+          }
+        });
+    }
+  };
+
+  addValue(query.tag);
+  addValue(query.tags);
+
+  return normalizeTagNames(values);
+};
+
 const normalizeTagName = (value) => {
   if (typeof value !== "string") {
     return null;
@@ -318,17 +342,36 @@ const getSpotById = async (spotId, currentUserId = null) => {
 };
 
 router.get("/", optionalAuth, async (req, res) => {
-  const { q, status, sort } = req.query;
+  const { q, status, sort, visibility, ownerId } = req.query;
   const filters = [];
   const params = [];
 
-  if (status === "mine") {
+  let visibilityFilter = undefined;
+  if (typeof visibility === "string" && visibility.trim()) {
+    visibilityFilter = visibility.trim();
+  } else if (typeof status === "string" && status.trim()) {
+    visibilityFilter = status.trim();
+  }
+
+  if (visibilityFilter === "mine") {
     if (!req.user) {
       return res.status(401).json({ message: "Authentication required" });
     }
 
     filters.push("s.user_id = ?");
     params.push(req.user.id);
+  } else if (visibilityFilter === "public") {
+    filters.push("s.status = 'public'");
+  } else if (visibilityFilter === "private") {
+    if (!req.user) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    filters.push("s.status = 'private'");
+    if (req.user.role !== "admin") {
+      filters.push("s.user_id = ?");
+      params.push(req.user.id);
+    }
   } else if (req.user) {
     filters.push("(s.status = 'public' OR s.user_id = ?)");
     params.push(req.user.id);
@@ -339,6 +382,28 @@ router.get("/", optionalAuth, async (req, res) => {
   if (typeof q === "string" && q.trim().length > 0) {
     filters.push("s.name LIKE ?");
     params.push(`%${q.trim()}%`);
+  }
+
+  if (typeof ownerId === "string" && ownerId.trim().length > 0) {
+    const ownerNumeric = Number(ownerId);
+    if (!Number.isNaN(ownerNumeric)) {
+      filters.push("s.user_id = ?");
+      params.push(ownerNumeric);
+    }
+  }
+
+  const tagFilters = collectTagFilters(req.query);
+  if (tagFilters.length > 0) {
+    const placeholders = tagFilters.map(() => "?").join(", ");
+    filters.push(
+      `EXISTS (
+        SELECT 1
+        FROM spot_tags st
+        JOIN tags t ON st.tag_id = t.id
+        WHERE st.spot_id = s.id AND t.name IN (${placeholders})
+      )`
+    );
+    params.push(...tagFilters);
   }
 
   try {
