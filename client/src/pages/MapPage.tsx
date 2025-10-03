@@ -452,6 +452,7 @@ function SpotFormModal({
     </div>
   );
 }
+
 export default function MapPage() {
   const location = useLocation();
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => parseStoredUser());
@@ -695,7 +696,7 @@ export default function MapPage() {
     }
 
     const lat = event.latLng.lat();
-    const lng = event.latLng.lng();
+       const lng = event.latLng.lng();
     setSelectedSpotId(null);
     setFormError('');
     setFormState({

@@ -164,32 +164,32 @@ function EditSpotModal({
             />
           </label>
 
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <span style={{ fontWeight: 600, color: palette.textPrimary }}>Status</span>
-          <select
-            value={status}
-            onChange={(event) => setStatus(event.target.value as 'public' | 'private')}
-            className="spotz-input"
-            style={{ appearance: 'none' }}
-          >
-            <option value="public">Public</option>
-            <option value="private">Private</option>
-          </select>
-        </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Status</span>
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value as 'public' | 'private')}
+              className="spotz-input"
+              style={{ appearance: 'none' }}
+            >
+              <option value="public">Public</option>
+              <option value="private">Private</option>
+            </select>
+          </label>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <span style={{ fontWeight: 600, color: palette.textPrimary }}>Tags</span>
-          <TagInput
-            value={tags}
-            onChange={setTags}
-            suggestions={availableTags}
-            maxTags={tagLimit}
-            placeholder="Add categories like #sunrise"
-          />
-          <span style={{ fontSize: '12px', color: palette.textMuted }}>
-            Use up to {tagLimit} tags to describe this spot.
-          </span>
-        </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Tags</span>
+            <TagInput
+              value={tags}
+              onChange={setTags}
+              suggestions={availableTags}
+              maxTags={tagLimit}
+              placeholder="Add categories like #sunrise"
+            />
+            <span style={{ fontSize: '12px', color: palette.textMuted }}>
+              Use up to {tagLimit} tags to describe this spot.
+            </span>
+          </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <span style={{ fontWeight: 600, color: palette.textPrimary }}>Image</span>
@@ -283,6 +283,7 @@ function EditSpotModal({
     </div>
   );
 }
+
 function SpotCard({
   spot,
   onShow,
@@ -406,6 +407,7 @@ function SpotCard({
     </article>
   );
 }
+
 export default function MySpotsPage() {
   const navigate = useNavigate();
   const [spots, setSpots] = useState<Spot[]>([]);

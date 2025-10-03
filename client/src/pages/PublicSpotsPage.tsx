@@ -257,14 +257,13 @@ function SpotCard({
   );
 }
 
-
 export default function PublicSpotsPage() {
   const [user, setUser] = useState<AuthUser | null>(() => parseStoredUser());
   const [spots, setSpots] = useState<Spot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState<SortOption>('latest');
+  the [sort, setSort] = useState<SortOption>('latest');
   const [deletingSpotId, setDeletingSpotId] = useState<number | null>(null);
 
   useEffect(() => {

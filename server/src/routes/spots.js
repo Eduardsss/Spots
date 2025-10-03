@@ -769,5 +769,4 @@ router.delete("/:spotId/comments/:commentId", authMiddleware, async (req, res) =
     return res.status(500).json({ message: "Failed to delete comment" });
   }
 });
-
 module.exports = router;
