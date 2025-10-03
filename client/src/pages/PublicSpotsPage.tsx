@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { SpotComments } from '../components/SpotComments';
 import { apiFetch } from '../lib/api';
 import { palette, radii, shadows } from '../styles/theme';
 
@@ -18,6 +19,7 @@ type Spot = {
   status: 'public' | 'private';
   likesCount: number;
   likedByCurrentUser?: boolean;
+  tags: string[];
 };
 
 type SpotsResponse = {
@@ -33,6 +35,7 @@ type SpotCardProps = {
   isDeleting: boolean;
   onToggleLike: (spot: Spot) => void;
   onDelete: (spot: Spot) => void;
+  currentUser: AuthUser | null;
 };
 
 function parseStoredUser(): AuthUser | null {
@@ -53,7 +56,19 @@ function parseStoredUser(): AuthUser | null {
   }
 }
 
-function SpotCard({ spot, canLike, canDelete, isDeleting, onToggleLike, onDelete }: SpotCardProps) {
+function SpotCard({
+  spot,
+  canLike,
+  canDelete,
+  isDeleting,
+  onToggleLike,
+  onDelete,
+  currentUser,
+}: SpotCardProps) {
+  const [showComments, setShowComments] = useState(false);
+  const canComment = Boolean(currentUser);
+  const toggleLabel = showComments ? 'Slēpt komentārus' : 'Skatīt komentārus';
+
   return (
     <article
       className="spotz-card"
@@ -126,6 +141,24 @@ function SpotCard({ spot, canLike, canDelete, isDeleting, onToggleLike, onDelete
           )}
         </div>
 
+        {spot.tags.length ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {spot.tags.map((tag) => (
+              <span
+                key={tag}
+                className="spotz-chip"
+                style={{
+                  background: palette.surfaceAlt,
+                  color: palette.accentStrong,
+                  border: `1px solid ${palette.border}`,
+                }}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
         <div
           style={{
             display: 'flex',
@@ -179,11 +212,50 @@ function SpotCard({ spot, canLike, canDelete, isDeleting, onToggleLike, onDelete
             )}
           </div>
         </div>
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setShowComments((value) => !value)}
+            className="spotz-btn spotz-btn--outline"
+            style={{
+              padding: '8px 14px',
+              borderRadius: radii.md,
+              border: `1px solid ${palette.border}`,
+              background: palette.surfaceAlt,
+              color: palette.textSecondary,
+            }}
+          >
+            {toggleLabel}
+          </button>
+        </div>
+
+        {showComments ? (
+          <div
+            style={{
+              borderTop: `1px solid ${palette.border}`,
+              paddingTop: '16px',
+            }}
+          >
+            <SpotComments
+              spotId={spot.id}
+              currentUser={currentUser}
+              canComment={canComment}
+              maxHeight={220}
+            />
+          </div>
+        ) : null}
       </div>
     </article>
   );
 }
-
 
 export default function PublicSpotsPage() {
   const [user, setUser] = useState<AuthUser | null>(() => parseStoredUser());
@@ -191,7 +263,7 @@ export default function PublicSpotsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState<SortOption>('latest');
+  the [sort, setSort] = useState<SortOption>('latest');
   const [deletingSpotId, setDeletingSpotId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -480,6 +552,7 @@ export default function PublicSpotsPage() {
                 isDeleting={deletingSpotId === spot.id}
                 onToggleLike={handleToggleLike}
                 onDelete={handleDeleteSpot}
+                currentUser={user}
               />
             ))}
           </div>

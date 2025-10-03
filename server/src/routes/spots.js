@@ -23,7 +23,186 @@ const mapSpotRow = (row) => ({
     username: row.owner_username,
     profile_image: row.owner_profile_image || null,
   },
+  tags: Array.isArray(row.tags) ? row.tags : [],
 });
+
+const mapCommentRow = (row) => ({
+  id: row.id,
+  content: row.content,
+  created_at: row.created_at,
+  user: {
+    id: row.user_id,
+    username: row.username,
+    profile_image: row.profile_image || null,
+  },
+});
+
+const MAX_TAGS_PER_SPOT = 8;
+
+const collectTagFilters = (query) => {
+  const values = [];
+
+  const addValue = (input) => {
+    if (Array.isArray(input)) {
+      input.forEach((item) => addValue(item));
+    } else if (typeof input === "string") {
+      input
+        .split(",")
+        .map((part) => part.trim())
+        .forEach((part) => {
+          if (part) {
+            values.push(part);
+          }
+        });
+    }
+  };
+
+  addValue(query.tag);
+  addValue(query.tags);
+
+  return normalizeTagNames(values);
+};
+
+const normalizeTagName = (value) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  let tag = value.trim().toLowerCase();
+  if (!tag) {
+    return null;
+  }
+
+  tag = tag.replace(/^#+/u, "");
+  tag = tag.replace(/[^\p{L}\p{N}]+/gu, "-");
+  tag = tag.replace(/-+/g, "-");
+  tag = tag.replace(/^-|-$/g, "");
+
+  if (!tag) {
+    return null;
+  }
+
+  if (tag.length > 30) {
+    tag = tag.slice(0, 30);
+  }
+
+  return `#${tag}`;
+};
+
+const normalizeTagNames = (input) => {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  const seen = new Set();
+  const tags = [];
+
+  for (const raw of input) {
+    const normalized = normalizeTagName(String(raw));
+    if (normalized && !seen.has(normalized)) {
+      seen.add(normalized);
+      tags.push(normalized);
+      if (tags.length >= MAX_TAGS_PER_SPOT) {
+        break;
+      }
+    }
+  }
+
+  return tags;
+};
+
+const ensureTags = async (tagNames) => {
+  if (!tagNames.length) {
+    return [];
+  }
+
+  const placeholders = tagNames.map(() => "?").join(", ");
+
+  let [rows] = await pool.query(
+    `SELECT id, name FROM tags WHERE name IN (${placeholders})`,
+    tagNames
+  );
+
+  if (rows.length < tagNames.length) {
+    const existing = new Set(rows.map((row) => row.name));
+    const missing = tagNames.filter((name) => !existing.has(name));
+
+    if (missing.length > 0) {
+      await pool.query(
+        `INSERT IGNORE INTO tags (name) VALUES ${missing
+          .map(() => "(?)")
+          .join(", ")}`,
+        missing
+      );
+
+      [rows] = await pool.query(
+        `SELECT id, name FROM tags WHERE name IN (${placeholders})`,
+        tagNames
+      );
+    }
+  }
+
+  return rows;
+};
+
+const syncSpotTags = async (spotId, tagNames) => {
+  if (!Array.isArray(tagNames) || !tagNames.length) {
+    await pool.query("DELETE FROM spot_tags WHERE spot_id = ?", [spotId]);
+    return [];
+  }
+
+  const tags = await ensureTags(tagNames);
+
+  await pool.query("DELETE FROM spot_tags WHERE spot_id = ?", [spotId]);
+
+  if (tags.length > 0) {
+    const values = tags.map(() => "(?, ?)").join(", ");
+    const params = [];
+
+    tags.forEach((tag) => {
+      params.push(spotId, tag.id);
+    });
+
+    await pool.query(
+      `INSERT INTO spot_tags (spot_id, tag_id) VALUES ${values}`,
+      params
+    );
+  }
+
+  return tags.map((tag) => tag.name);
+};
+
+const attachTagsToSpots = async (spotList) => {
+  if (!Array.isArray(spotList) || spotList.length === 0) {
+    return spotList;
+  }
+
+  const spotIds = spotList.map((spot) => spot.id);
+  const placeholders = spotIds.map(() => "?").join(", ");
+
+  const [rows] = await pool.query(
+    `SELECT st.spot_id, t.name
+     FROM spot_tags st
+     JOIN tags t ON st.tag_id = t.id
+     WHERE st.spot_id IN (${placeholders})
+     ORDER BY t.name ASC`,
+    spotIds
+  );
+
+  const tagsBySpot = new Map();
+  rows.forEach((row) => {
+    if (!tagsBySpot.has(row.spot_id)) {
+      tagsBySpot.set(row.spot_id, []);
+    }
+    tagsBySpot.get(row.spot_id).push(row.name);
+  });
+
+  spotList.forEach((spot) => {
+    spot.tags = tagsBySpot.get(spot.id) || [];
+  });
+
+  return spotList;
+};
 
 const optionalAuth = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -49,7 +228,9 @@ const optionalAuth = (req, res, next) => {
     req.user = { id, username, role };
     return next();
   } catch (error) {
-    return res.status(401).json({ message: "Invalid or expired token" });
+    console.warn("Optional auth token ignored", error.message);
+    req.user = undefined;
+    return next();
   }
 };
 
@@ -101,7 +282,9 @@ const buildSpotQuery = async (filters, params, sort, currentUserId) => {
     queryParams
   );
 
-  return rows.map(mapSpotRow);
+  const spots = rows.map((row) => mapSpotRow({ ...row, tags: [] }));
+  await attachTagsToSpots(spots);
+  return spots;
 };
 
 const getSpotById = async (spotId, currentUserId = null) => {
@@ -153,21 +336,42 @@ const getSpotById = async (spotId, currentUserId = null) => {
     return null;
   }
 
-  return mapSpotRow(rows[0]);
+  const spot = mapSpotRow({ ...rows[0], tags: [] });
+  await attachTagsToSpots([spot]);
+  return spot;
 };
 
 router.get("/", optionalAuth, async (req, res) => {
-  const { q, status, sort } = req.query;
+  const { q, status, sort, visibility, ownerId } = req.query;
   const filters = [];
   const params = [];
 
-  if (status === "mine") {
+  let visibilityFilter = undefined;
+  if (typeof visibility === "string" && visibility.trim()) {
+    visibilityFilter = visibility.trim();
+  } else if (typeof status === "string" && status.trim()) {
+    visibilityFilter = status.trim();
+  }
+
+  if (visibilityFilter === "mine") {
     if (!req.user) {
       return res.status(401).json({ message: "Authentication required" });
     }
 
     filters.push("s.user_id = ?");
     params.push(req.user.id);
+  } else if (visibilityFilter === "public") {
+    filters.push("s.status = 'public'");
+  } else if (visibilityFilter === "private") {
+    if (!req.user) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    filters.push("s.status = 'private'");
+    if (req.user.role !== "admin") {
+      filters.push("s.user_id = ?");
+      params.push(req.user.id);
+    }
   } else if (req.user) {
     filters.push("(s.status = 'public' OR s.user_id = ?)");
     params.push(req.user.id);
@@ -178,6 +382,28 @@ router.get("/", optionalAuth, async (req, res) => {
   if (typeof q === "string" && q.trim().length > 0) {
     filters.push("s.name LIKE ?");
     params.push(`%${q.trim()}%`);
+  }
+
+  if (typeof ownerId === "string" && ownerId.trim().length > 0) {
+    const ownerNumeric = Number(ownerId);
+    if (!Number.isNaN(ownerNumeric)) {
+      filters.push("s.user_id = ?");
+      params.push(ownerNumeric);
+    }
+  }
+
+  const tagFilters = collectTagFilters(req.query);
+  if (tagFilters.length > 0) {
+    const placeholders = tagFilters.map(() => "?").join(", ");
+    filters.push(
+      `EXISTS (
+        SELECT 1
+        FROM spot_tags st
+        JOIN tags t ON st.tag_id = t.id
+        WHERE st.spot_id = s.id AND t.name IN (${placeholders})
+      )`
+    );
+    params.push(...tagFilters);
   }
 
   try {
@@ -195,7 +421,7 @@ router.get("/", optionalAuth, async (req, res) => {
 });
 
 router.post("/", authMiddleware, async (req, res) => {
-  const { name, description, image, lat, lng, status } = req.body;
+  const { name, description, image, lat, lng, status, tags: rawTags } = req.body;
 
   if (!name || typeof lat === "undefined" || typeof lng === "undefined") {
     return res
@@ -209,7 +435,12 @@ router.post("/", authMiddleware, async (req, res) => {
       .json({ message: "Status must be either 'public' or 'private'" });
   }
 
+  if (typeof rawTags !== "undefined" && !Array.isArray(rawTags)) {
+    return res.status(400).json({ message: "Tags must be an array" });
+  }
+
   const normalizedStatus = status || "public";
+  const tags = normalizeTagNames(rawTags || []);
 
   try {
     const [result] = await pool.query(
@@ -224,6 +455,10 @@ router.post("/", authMiddleware, async (req, res) => {
         normalizedStatus,
       ]
     );
+
+    if (tags.length > 0) {
+      await syncSpotTags(result.insertId, tags);
+    }
 
     const spot = await getSpotById(result.insertId, req.user.id);
 
@@ -241,13 +476,14 @@ router.put("/:id", authMiddleware, async (req, res) => {
     return res.status(400).json({ message: "Invalid spot ID" });
   }
 
-  const { name, description, image, status } = req.body;
+  const { name, description, image, status, tags: rawTags } = req.body;
 
   if (
     typeof name === "undefined" &&
     typeof description === "undefined" &&
     typeof image === "undefined" &&
-    typeof status === "undefined"
+    typeof status === "undefined" &&
+    typeof rawTags === "undefined"
   ) {
     return res.status(400).json({ message: "No fields provided for update" });
   }
@@ -257,6 +493,12 @@ router.put("/:id", authMiddleware, async (req, res) => {
       .status(400)
       .json({ message: "Status must be either 'public' or 'private'" });
   }
+
+  if (typeof rawTags !== "undefined" && !Array.isArray(rawTags)) {
+    return res.status(400).json({ message: "Tags must be an array" });
+  }
+
+  const tags = typeof rawTags === "undefined" ? null : normalizeTagNames(rawTags);
 
   try {
     const spot = await getSpotById(spotId);
@@ -292,13 +534,18 @@ router.put("/:id", authMiddleware, async (req, res) => {
       params.push(status);
     }
 
-    if (updates.length === 0) {
+    if (updates.length === 0 && tags === null) {
       return res.status(400).json({ message: "No valid fields to update" });
     }
 
-    params.push(spotId);
+    if (updates.length > 0) {
+      params.push(spotId);
+      await pool.query(`UPDATE spots SET ${updates.join(", ")} WHERE id = ?`, params);
+    }
 
-    await pool.query(`UPDATE spots SET ${updates.join(", ")} WHERE id = ?`, params);
+    if (Array.isArray(tags)) {
+      await syncSpotTags(spotId, tags);
+    }
 
     const updatedSpot = await getSpotById(spotId, req.user.id);
 
@@ -386,4 +633,140 @@ router.delete("/:id/like", authMiddleware, async (req, res) => {
   }
 });
 
+router.get("/tags", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT name FROM tags ORDER BY name ASC"
+    );
+    return res.json({ tags: rows.map((row) => row.name) });
+  } catch (error) {
+    console.error("Error fetching tags", error);
+    return res.status(500).json({ message: "Failed to fetch tags" });
+  }
+});
+
+router.get("/:id/comments", async (req, res) => {
+  const spotId = Number(req.params.id);
+
+  if (Number.isNaN(spotId)) {
+    return res.status(400).json({ message: "Invalid spot ID" });
+  }
+
+  try {
+    const spot = await getSpotById(spotId);
+
+    if (!spot) {
+      return res.status(404).json({ message: "Spot not found" });
+    }
+
+    if (spot.status !== "public") {
+      return res
+        .status(403)
+        .json({ message: "Comments are available only for public spots" });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT c.id, c.content, c.created_at, u.id AS user_id, u.username, u.profile_image
+       FROM spot_comments c
+       JOIN users u ON c.user_id = u.id
+       WHERE c.spot_id = ?
+       ORDER BY c.created_at ASC`,
+      [spotId]
+    );
+
+    return res.json({ comments: rows.map(mapCommentRow) });
+  } catch (error) {
+    console.error("Error fetching comments", error);
+    return res.status(500).json({ message: "Failed to fetch comments" });
+  }
+});
+
+router.post("/:id/comments", authMiddleware, async (req, res) => {
+  const spotId = Number(req.params.id);
+  const { content } = req.body;
+
+  if (Number.isNaN(spotId)) {
+    return res.status(400).json({ message: "Invalid spot ID" });
+  }
+
+  const trimmedContent = typeof content === "string" ? content.trim() : "";
+
+  if (!trimmedContent) {
+    return res.status(400).json({ message: "Comment content is required" });
+  }
+
+  try {
+    const spot = await getSpotById(spotId);
+
+    if (!spot) {
+      return res.status(404).json({ message: "Spot not found" });
+    }
+
+    if (spot.status !== "public") {
+      return res
+        .status(403)
+        .json({ message: "Comments are available only for public spots" });
+    }
+
+    const [result] = await pool.query(
+      "INSERT INTO spot_comments (spot_id, user_id, content) VALUES (?, ?, ?)",
+      [spotId, req.user.id, trimmedContent]
+    );
+
+    const [rows] = await pool.query(
+      `SELECT c.id, c.content, c.created_at, u.id AS user_id, u.username, u.profile_image
+       FROM spot_comments c
+       JOIN users u ON c.user_id = u.id
+       WHERE c.id = ?
+       LIMIT 1`,
+      [result.insertId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(500).json({ message: "Failed to load created comment" });
+    }
+
+    return res.status(201).json({ comment: mapCommentRow(rows[0]) });
+  } catch (error) {
+    console.error("Error creating comment", error);
+    return res.status(500).json({ message: "Failed to create comment" });
+  }
+});
+
+router.delete("/:spotId/comments/:commentId", authMiddleware, async (req, res) => {
+  const spotId = Number(req.params.spotId);
+  const commentId = Number(req.params.commentId);
+
+  if (Number.isNaN(spotId) || Number.isNaN(commentId)) {
+    return res.status(400).json({ message: "Invalid identifiers" });
+  }
+
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ message: "Only administrators can remove comments" });
+  }
+
+  try {
+    const spot = await getSpotById(spotId);
+
+    if (!spot) {
+      return res.status(404).json({ message: "Spot not found" });
+    }
+
+    const [rows] = await pool.query(
+      "SELECT id FROM spot_comments WHERE id = ? AND spot_id = ?",
+      [commentId, spotId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Comment not found" });
+    }
+
+    await pool.query("DELETE FROM spot_comments WHERE id = ?", [commentId]);
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting comment", error);
+    return res.status(500).json({ message: "Failed to delete comment" });
+  }
+});
 module.exports = router;

@@ -1,6 +1,8 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { TagInput } from '../components/TagInput';
 import { apiFetch } from '../lib/api';
+import { areTagListsEqual, mergeTagLists, MAX_TAGS_PER_SPOT } from '../lib/tags';
 import { palette, radii, shadows } from '../styles/theme';
 
 type Spot = {
@@ -13,6 +15,7 @@ type Spot = {
   lng: number;
   status: 'public' | 'private';
   created_at: string;
+  tags: string[];
 };
 
 type SpotsResponse = {
@@ -24,10 +27,15 @@ type SpotFormValues = {
   description: string;
   status: 'public' | 'private';
   image: string | null;
+  tags: string[];
 };
 
 type SpotFormSubmission = SpotFormValues & {
   imageChanged: boolean;
+};
+
+type TagsResponse = {
+  tags: string[];
 };
 
 function fileToBase64(file: File): Promise<string> {
@@ -48,6 +56,8 @@ function EditSpotModal({
   onSubmit,
   submitting,
   error,
+  availableTags,
+  maxTags,
 }: {
   open: boolean;
   spot: Spot | null;
@@ -55,6 +65,8 @@ function EditSpotModal({
   onSubmit: (values: SpotFormSubmission) => void;
   submitting: boolean;
   error: string | null;
+  availableTags: string[];
+  maxTags?: number;
 }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -64,6 +76,8 @@ function EditSpotModal({
     value: string | null;
     changed: boolean;
   }>({ preview: null, value: null, changed: false });
+  const [tags, setTags] = useState<string[]>([]);
+  const tagLimit = maxTags ?? MAX_TAGS_PER_SPOT;
 
   useEffect(() => {
     if (!open || !spot) {
@@ -74,6 +88,7 @@ function EditSpotModal({
     setDescription(spot.description ?? '');
     setStatus(spot.status);
     setImageState({ preview: spot.image ?? null, value: spot.image ?? null, changed: false });
+    setTags([...(spot.tags ?? [])]);
   }, [open, spot]);
 
   if (!open || !spot) {
@@ -106,6 +121,7 @@ function EditSpotModal({
       description,
       status,
       image: imageState.value,
+      tags,
       imageChanged: imageState.changed,
     });
   };
@@ -160,6 +176,20 @@ function EditSpotModal({
               <option value="private">Private</option>
             </select>
           </label>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Tags</span>
+            <TagInput
+              value={tags}
+              onChange={setTags}
+              suggestions={availableTags}
+              maxTags={tagLimit}
+              placeholder="Add categories like #sunrise"
+            />
+            <span style={{ fontSize: '12px', color: palette.textMuted }}>
+              Use up to {tagLimit} tags to describe this spot.
+            </span>
+          </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <span style={{ fontWeight: 600, color: palette.textPrimary }}>Image</span>
@@ -253,6 +283,7 @@ function EditSpotModal({
     </div>
   );
 }
+
 function SpotCard({
   spot,
   onShow,
@@ -305,6 +336,23 @@ function SpotCard({
             ? spot.description
             : 'No description provided.'}
         </p>
+        {spot.tags.length ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {spot.tags.map((tag) => (
+              <span
+                key={tag}
+                className="spotz-chip"
+                style={{
+                  background: palette.surfaceAlt,
+                  color: palette.accentStrong,
+                  border: `1px solid ${palette.border}`,
+                }}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        ) : null}
         <div style={{ display: 'flex', gap: '12px', marginTop: 'auto', flexWrap: 'wrap' }}>
           <button
             type="button"
@@ -359,6 +407,7 @@ function SpotCard({
     </article>
   );
 }
+
 export default function MySpotsPage() {
   const navigate = useNavigate();
   const [spots, setSpots] = useState<Spot[]>([]);
@@ -367,6 +416,30 @@ export default function MySpotsPage() {
   const [editingSpot, setEditingSpot] = useState<Spot | null>(null);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    const fetchTags = async () => {
+      try {
+        const response = await apiFetch<TagsResponse>('/spots/tags');
+        if (!ignore && Array.isArray(response.tags)) {
+          setAvailableTags(response.tags);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setAvailableTags([]);
+        }
+      }
+    };
+
+    void fetchTags();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const fetchSpots = useCallback(async () => {
     setLoading(true);
@@ -375,6 +448,12 @@ export default function MySpotsPage() {
     try {
       const data = await apiFetch<SpotsResponse>('/spots?status=mine');
       setSpots(data.spots);
+      if (data.spots?.length) {
+        const collected = data.spots.flatMap((spot) => spot.tags ?? []);
+        if (collected.length) {
+          setAvailableTags((current) => mergeTagLists(current, collected));
+        }
+      }
     } catch (err) {
       console.error('Failed to load spots', err);
       setError(err instanceof Error ? err.message : 'Failed to load spots');
@@ -436,6 +515,10 @@ export default function MySpotsPage() {
         payload.image = values.image;
       }
 
+      if (!areTagListsEqual(values.tags, editingSpot.tags ?? [])) {
+        payload.tags = values.tags;
+      }
+
       try {
         const data = await apiFetch<{ spot: Spot }>(`/spots/${editingSpot.id}`, {
           method: 'PUT',
@@ -445,6 +528,7 @@ export default function MySpotsPage() {
         setSpots((current) =>
           current.map((item) => (item.id === data.spot.id ? { ...item, ...data.spot } : item))
         );
+        setAvailableTags((current) => mergeTagLists(current, data.spot.tags ?? []));
         setEditingSpot(null);
       } catch (err) {
         console.error('Failed to update spot', err);
@@ -534,6 +618,8 @@ export default function MySpotsPage() {
         onSubmit={handleSubmitEdit}
         submitting={saving}
         error={editError}
+        availableTags={availableTags}
+        maxTags={MAX_TAGS_PER_SPOT}
       />
     </div>
   );
