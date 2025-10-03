@@ -23,6 +23,7 @@ const mapSpotRow = (row) => ({
     username: row.owner_username,
     profile_image: row.owner_profile_image || null,
   },
+  tags: Array.isArray(row.tags) ? row.tags : [],
 });
 
 const mapCommentRow = (row) => ({
@@ -35,6 +36,149 @@ const mapCommentRow = (row) => ({
     profile_image: row.profile_image || null,
   },
 });
+
+const MAX_TAGS_PER_SPOT = 8;
+
+const normalizeTagName = (value) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  let tag = value.trim().toLowerCase();
+  if (!tag) {
+    return null;
+  }
+
+  tag = tag.replace(/^#+/u, "");
+  tag = tag.replace(/[^\p{L}\p{N}]+/gu, "-");
+  tag = tag.replace(/-+/g, "-");
+  tag = tag.replace(/^-|-$/g, "");
+
+  if (!tag) {
+    return null;
+  }
+
+  if (tag.length > 30) {
+    tag = tag.slice(0, 30);
+  }
+
+  return `#${tag}`;
+};
+
+const normalizeTagNames = (input) => {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  const seen = new Set();
+  const tags = [];
+
+  for (const raw of input) {
+    const normalized = normalizeTagName(String(raw));
+    if (normalized && !seen.has(normalized)) {
+      seen.add(normalized);
+      tags.push(normalized);
+      if (tags.length >= MAX_TAGS_PER_SPOT) {
+        break;
+      }
+    }
+  }
+
+  return tags;
+};
+
+const ensureTags = async (tagNames) => {
+  if (!tagNames.length) {
+    return [];
+  }
+
+  const placeholders = tagNames.map(() => "?").join(", ");
+
+  let [rows] = await pool.query(
+    `SELECT id, name FROM tags WHERE name IN (${placeholders})`,
+    tagNames
+  );
+
+  if (rows.length < tagNames.length) {
+    const existing = new Set(rows.map((row) => row.name));
+    const missing = tagNames.filter((name) => !existing.has(name));
+
+    if (missing.length > 0) {
+      await pool.query(
+        `INSERT IGNORE INTO tags (name) VALUES ${missing
+          .map(() => "(?)")
+          .join(", ")}`,
+        missing
+      );
+
+      [rows] = await pool.query(
+        `SELECT id, name FROM tags WHERE name IN (${placeholders})`,
+        tagNames
+      );
+    }
+  }
+
+  return rows;
+};
+
+const syncSpotTags = async (spotId, tagNames) => {
+  if (!Array.isArray(tagNames) || !tagNames.length) {
+    await pool.query("DELETE FROM spot_tags WHERE spot_id = ?", [spotId]);
+    return [];
+  }
+
+  const tags = await ensureTags(tagNames);
+
+  await pool.query("DELETE FROM spot_tags WHERE spot_id = ?", [spotId]);
+
+  if (tags.length > 0) {
+    const values = tags.map(() => "(?, ?)").join(", ");
+    const params = [];
+
+    tags.forEach((tag) => {
+      params.push(spotId, tag.id);
+    });
+
+    await pool.query(
+      `INSERT INTO spot_tags (spot_id, tag_id) VALUES ${values}`,
+      params
+    );
+  }
+
+  return tags.map((tag) => tag.name);
+};
+
+const attachTagsToSpots = async (spotList) => {
+  if (!Array.isArray(spotList) || spotList.length === 0) {
+    return spotList;
+  }
+
+  const spotIds = spotList.map((spot) => spot.id);
+  const placeholders = spotIds.map(() => "?").join(", ");
+
+  const [rows] = await pool.query(
+    `SELECT st.spot_id, t.name
+     FROM spot_tags st
+     JOIN tags t ON st.tag_id = t.id
+     WHERE st.spot_id IN (${placeholders})
+     ORDER BY t.name ASC`,
+    spotIds
+  );
+
+  const tagsBySpot = new Map();
+  rows.forEach((row) => {
+    if (!tagsBySpot.has(row.spot_id)) {
+      tagsBySpot.set(row.spot_id, []);
+    }
+    tagsBySpot.get(row.spot_id).push(row.name);
+  });
+
+  spotList.forEach((spot) => {
+    spot.tags = tagsBySpot.get(spot.id) || [];
+  });
+
+  return spotList;
+};
 
 const optionalAuth = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -60,7 +204,9 @@ const optionalAuth = (req, res, next) => {
     req.user = { id, username, role };
     return next();
   } catch (error) {
-    return res.status(401).json({ message: "Invalid or expired token" });
+    console.warn("Optional auth token ignored", error.message);
+    req.user = undefined;
+    return next();
   }
 };
 
@@ -112,7 +258,9 @@ const buildSpotQuery = async (filters, params, sort, currentUserId) => {
     queryParams
   );
 
-  return rows.map(mapSpotRow);
+  const spots = rows.map((row) => mapSpotRow({ ...row, tags: [] }));
+  await attachTagsToSpots(spots);
+  return spots;
 };
 
 const getSpotById = async (spotId, currentUserId = null) => {
@@ -164,7 +312,9 @@ const getSpotById = async (spotId, currentUserId = null) => {
     return null;
   }
 
-  return mapSpotRow(rows[0]);
+  const spot = mapSpotRow({ ...rows[0], tags: [] });
+  await attachTagsToSpots([spot]);
+  return spot;
 };
 
 router.get("/", optionalAuth, async (req, res) => {
@@ -206,7 +356,7 @@ router.get("/", optionalAuth, async (req, res) => {
 });
 
 router.post("/", authMiddleware, async (req, res) => {
-  const { name, description, image, lat, lng, status } = req.body;
+  const { name, description, image, lat, lng, status, tags: rawTags } = req.body;
 
   if (!name || typeof lat === "undefined" || typeof lng === "undefined") {
     return res
@@ -220,7 +370,12 @@ router.post("/", authMiddleware, async (req, res) => {
       .json({ message: "Status must be either 'public' or 'private'" });
   }
 
+  if (typeof rawTags !== "undefined" && !Array.isArray(rawTags)) {
+    return res.status(400).json({ message: "Tags must be an array" });
+  }
+
   const normalizedStatus = status || "public";
+  const tags = normalizeTagNames(rawTags || []);
 
   try {
     const [result] = await pool.query(
@@ -235,6 +390,10 @@ router.post("/", authMiddleware, async (req, res) => {
         normalizedStatus,
       ]
     );
+
+    if (tags.length > 0) {
+      await syncSpotTags(result.insertId, tags);
+    }
 
     const spot = await getSpotById(result.insertId, req.user.id);
 
@@ -252,13 +411,14 @@ router.put("/:id", authMiddleware, async (req, res) => {
     return res.status(400).json({ message: "Invalid spot ID" });
   }
 
-  const { name, description, image, status } = req.body;
+  const { name, description, image, status, tags: rawTags } = req.body;
 
   if (
     typeof name === "undefined" &&
     typeof description === "undefined" &&
     typeof image === "undefined" &&
-    typeof status === "undefined"
+    typeof status === "undefined" &&
+    typeof rawTags === "undefined"
   ) {
     return res.status(400).json({ message: "No fields provided for update" });
   }
@@ -268,6 +428,12 @@ router.put("/:id", authMiddleware, async (req, res) => {
       .status(400)
       .json({ message: "Status must be either 'public' or 'private'" });
   }
+
+  if (typeof rawTags !== "undefined" && !Array.isArray(rawTags)) {
+    return res.status(400).json({ message: "Tags must be an array" });
+  }
+
+  const tags = typeof rawTags === "undefined" ? null : normalizeTagNames(rawTags);
 
   try {
     const spot = await getSpotById(spotId);
@@ -303,13 +469,18 @@ router.put("/:id", authMiddleware, async (req, res) => {
       params.push(status);
     }
 
-    if (updates.length === 0) {
+    if (updates.length === 0 && tags === null) {
       return res.status(400).json({ message: "No valid fields to update" });
     }
 
-    params.push(spotId);
+    if (updates.length > 0) {
+      params.push(spotId);
+      await pool.query(`UPDATE spots SET ${updates.join(", ")} WHERE id = ?`, params);
+    }
 
-    await pool.query(`UPDATE spots SET ${updates.join(", ")} WHERE id = ?`, params);
+    if (Array.isArray(tags)) {
+      await syncSpotTags(spotId, tags);
+    }
 
     const updatedSpot = await getSpotById(spotId, req.user.id);
 
@@ -394,6 +565,18 @@ router.delete("/:id/like", authMiddleware, async (req, res) => {
   } catch (error) {
     console.error("Error removing like", error);
     return res.status(500).json({ message: "Failed to remove like" });
+  }
+});
+
+router.get("/tags", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT name FROM tags ORDER BY name ASC"
+    );
+    return res.json({ tags: rows.map((row) => row.name) });
+  } catch (error) {
+    console.error("Error fetching tags", error);
+    return res.status(500).json({ message: "Failed to fetch tags" });
   }
 });
 

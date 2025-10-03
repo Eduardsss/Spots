@@ -19,6 +19,7 @@ type Spot = {
   status: 'public' | 'private';
   likesCount: number;
   likedByCurrentUser?: boolean;
+  tags: string[];
 };
 
 type SpotsResponse = {
@@ -139,6 +140,24 @@ function SpotCard({
             </p>
           )}
         </div>
+
+        {spot.tags.length ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {spot.tags.map((tag) => (
+              <span
+                key={tag}
+                className="spotz-chip"
+                style={{
+                  background: palette.surfaceAlt,
+                  color: palette.accentStrong,
+                  border: `1px solid ${palette.border}`,
+                }}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        ) : null}
 
         <div
           style={{

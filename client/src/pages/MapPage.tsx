@@ -14,7 +14,9 @@ import {
   useJsApiLoader,
 } from '@react-google-maps/api';
 import { SpotComments } from '../components/SpotComments';
+import { TagInput } from '../components/TagInput';
 import { apiFetch } from '../lib/api';
+import { areTagListsEqual, mergeTagLists, MAX_TAGS_PER_SPOT } from '../lib/tags';
 import { palette, radii, shadows, transitions } from '../styles/theme';
 
 type AuthUser = {
@@ -40,6 +42,7 @@ type Spot = {
     username: string;
     profile_image: string | null;
   };
+  tags: string[];
 };
 
 type SpotFormValues = {
@@ -47,6 +50,7 @@ type SpotFormValues = {
   description: string;
   status: 'public' | 'private';
   image: string | null;
+  tags: string[];
 };
 
 type SpotFormSubmission = SpotFormValues & {
@@ -80,6 +84,10 @@ type UpdateSpotResponse = {
 type NotificationState = {
   type: 'success' | 'error';
   message: string;
+};
+
+type TagsResponse = {
+  tags: string[];
 };
 
 const MAP_OPTIONS: google.maps.MapOptions = {
@@ -140,6 +148,8 @@ function SpotFormModal({
   error,
   mode,
   position,
+  availableTags,
+  maxTags,
 }: {
   title: string;
   open: boolean;
@@ -150,6 +160,8 @@ function SpotFormModal({
   error: string;
   mode: 'create' | 'edit';
   position?: { lat: number; lng: number };
+  availableTags: string[];
+  maxTags?: number;
 }) {
   const [name, setName] = useState(initialValues.name);
   const [description, setDescription] = useState(initialValues.description);
@@ -163,6 +175,8 @@ function SpotFormModal({
     value: initialValues.image,
     changed: false,
   });
+  const [tags, setTags] = useState<string[]>([...initialValues.tags]);
+  const tagLimit = maxTags ?? MAX_TAGS_PER_SPOT;
 
   useEffect(() => {
     if (!open) {
@@ -177,6 +191,7 @@ function SpotFormModal({
       value: initialValues.image,
       changed: false,
     });
+    setTags([...initialValues.tags]);
   }, [initialValues, open]);
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -206,6 +221,7 @@ function SpotFormModal({
       description: description,
       status,
       image: imageState.value,
+      tags,
       imageChanged: imageState.changed,
     });
   };
@@ -311,6 +327,20 @@ function SpotFormModal({
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', color: palette.textPrimary }}>
+          <span style={{ fontWeight: 600 }}>Tags</span>
+          <TagInput
+            value={tags}
+            onChange={setTags}
+            suggestions={availableTags}
+            maxTags={tagLimit}
+            placeholder="Add categories like #nature or #city"
+          />
+          <span style={{ fontSize: '12px', color: palette.textMuted }}>
+            Add up to {tagLimit} tags to help others discover this spot.
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', color: palette.textPrimary }}>
           <span style={{ fontWeight: 600 }}>Cover image</span>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
             <div
@@ -398,6 +428,7 @@ export default function MapPage() {
   const [formError, setFormError] = useState('');
   const [notification, setNotification] = useState<NotificationState | null>(null);
   const [center, setCenter] = useState(DEFAULT_CENTER);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'spotz-map-loader',
@@ -437,6 +468,29 @@ export default function MapPage() {
   useEffect(() => {
     let ignore = false;
 
+    const fetchTags = async () => {
+      try {
+        const response = await apiFetch<TagsResponse>('/spots/tags');
+        if (!ignore && Array.isArray(response.tags)) {
+          setAvailableTags(response.tags);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setAvailableTags([]);
+        }
+      }
+    };
+
+    void fetchTags();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+
     const fetchSpots = async () => {
       setLoading(true);
       setFetchError('');
@@ -444,6 +498,12 @@ export default function MapPage() {
         const response = await apiFetch<SpotsResponse>('/spots');
         if (!ignore) {
           setSpots(response.spots ?? []);
+          if (response.spots) {
+            const collected = response.spots.flatMap((spot) => spot.tags ?? []);
+            if (collected.length) {
+              setAvailableTags((current) => mergeTagLists(current, collected));
+            }
+          }
         }
       } catch (error) {
         if (!ignore) {
@@ -491,7 +551,7 @@ export default function MapPage() {
     setFormState({
       mode: 'create',
       position: { lat, lng },
-      values: { name: '', description: '', status: 'public', image: null },
+      values: { name: '', description: '', status: 'public', image: null, tags: [] },
     });
   };
 
@@ -522,6 +582,7 @@ export default function MapPage() {
         image: values.image ?? null,
         lat: formState.position.lat,
         lng: formState.position.lng,
+        tags: values.tags,
       };
 
       const response = await apiFetch<CreateSpotResponse>('/spots', {
@@ -530,6 +591,7 @@ export default function MapPage() {
       });
 
       setSpots((current) => [...current, response.spot]);
+      setAvailableTags((current) => mergeTagLists(current, response.spot.tags ?? []));
       handleCloseForm();
       setNotification({ type: 'success', message: 'Spot added successfully.' });
     } catch (error) {
@@ -565,6 +627,10 @@ export default function MapPage() {
       updates.image = values.image ?? null;
     }
 
+    if (!areTagListsEqual(values.tags, target.tags ?? [])) {
+      updates.tags = values.tags;
+    }
+
     if (Object.keys(updates).length === 0) {
       setFormError('No changes to save.');
       return;
@@ -582,6 +648,7 @@ export default function MapPage() {
       setSpots((current) =>
         current.map((spot) => (spot.id === target.id ? response.spot : spot))
       );
+      setAvailableTags((current) => mergeTagLists(current, response.spot.tags ?? []));
       handleCloseForm();
       setNotification({ type: 'success', message: 'Spot updated successfully.' });
     } catch (error) {
@@ -733,6 +800,24 @@ export default function MapPage() {
             </p>
           ) : null}
 
+          {selectedSpot.tags.length ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {selectedSpot.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="spotz-chip"
+                  style={{
+                    background: palette.surfaceAlt,
+                    color: palette.accentStrong,
+                    border: `1px solid ${palette.border}`,
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
             {currentUser ? (
               <button
@@ -775,6 +860,7 @@ export default function MapPage() {
                         description: selectedSpot.description ?? '',
                         status: selectedSpot.status,
                         image: selectedSpot.image,
+                        tags: [...(selectedSpot.tags ?? [])],
                       },
                     });
                   }}
@@ -951,12 +1037,14 @@ export default function MapPage() {
         initialValues={
           formState
             ? formState.values
-            : { name: '', description: '', status: 'public', image: null }
+            : { name: '', description: '', status: 'public', image: null, tags: [] }
         }
         submitting={formSubmitting}
         error={formError}
         mode={formState?.mode ?? 'create'}
         position={formState?.mode === 'create' ? formState.position : undefined}
+        availableTags={availableTags}
+        maxTags={MAX_TAGS_PER_SPOT}
       />
     </div>
   );
