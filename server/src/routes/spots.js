@@ -420,6 +420,102 @@ router.get("/", optionalAuth, async (req, res) => {
   }
 });
 
+router.get("/nearby", optionalAuth, async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  const limitParam = Array.isArray(req.query.limit)
+    ? Number(req.query.limit[0])
+    : Number(req.query.limit);
+
+  if (Number.isNaN(lat) || Number.isNaN(lng)) {
+    return res
+      .status(400)
+      .json({ message: "Valid latitude and longitude are required" });
+  }
+
+  const limit = Number.isNaN(limitParam)
+    ? 10
+    : Math.min(Math.max(Math.trunc(limitParam), 1), 50);
+
+  const currentUserId = req.user ? req.user.id : null;
+
+  const likedSelect = currentUserId
+    ? ", CASE WHEN ul.user_id IS NULL THEN 0 ELSE 1 END AS likedByCurrentUser"
+    : ", 0 AS likedByCurrentUser";
+
+  const likedJoin = currentUserId
+    ? "LEFT JOIN spot_likes ul ON ul.spot_id = s.id AND ul.user_id = ?"
+    : "";
+
+  const visibilityClause = currentUserId
+    ? "(s.status = 'public' OR s.user_id = ?)"
+    : "s.status = 'public'";
+
+  const queryParams = [lat, lng, lat];
+
+  if (currentUserId) {
+    queryParams.push(currentUserId);
+  }
+
+  if (currentUserId) {
+    queryParams.push(currentUserId);
+  }
+
+  queryParams.push(limit);
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT
+          s.id,
+          s.user_id,
+          s.name,
+          s.description,
+          s.image,
+          s.lat,
+          s.lng,
+          s.status,
+          s.created_at,
+          u.username AS owner_username,
+          u.profile_image AS owner_profile_image,
+          COALESCE(l.likesCount, 0) AS likesCount
+          ${likedSelect},
+          (6371 * acos(
+            cos(radians(?)) *
+            cos(radians(s.lat)) *
+            cos(radians(s.lng) - radians(?)) +
+            sin(radians(?)) *
+            sin(radians(s.lat))
+          )) AS distance
+        FROM spots s
+        JOIN users u ON s.user_id = u.id
+        LEFT JOIN (
+          SELECT spot_id, COUNT(*) AS likesCount
+          FROM spot_likes
+          GROUP BY spot_id
+        ) l ON l.spot_id = s.id
+        ${likedJoin}
+        WHERE ${visibilityClause}
+          AND s.lat IS NOT NULL
+          AND s.lng IS NOT NULL
+        ORDER BY distance ASC
+        LIMIT ?`,
+      queryParams
+    );
+
+    const spots = rows.map((row) => ({
+      ...mapSpotRow({ ...row, tags: [] }),
+      distance: Number(row.distance ?? 0),
+    }));
+
+    await attachTagsToSpots(spots);
+
+    return res.json({ spots });
+  } catch (error) {
+    console.error("Error fetching nearby spots", error);
+    return res.status(500).json({ message: "Failed to fetch nearby spots" });
+  }
+});
+
 router.post("/", authMiddleware, async (req, res) => {
   const { name, description, image, lat, lng, status, tags: rawTags } = req.body;
 

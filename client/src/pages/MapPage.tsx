@@ -2,6 +2,7 @@ import {
   ChangeEvent,
   FormEvent,
   KeyboardEvent,
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -90,6 +91,14 @@ type CreateSpotResponse = {
 
 type UpdateSpotResponse = {
   spot: Spot;
+};
+
+type NearbySpot = Spot & {
+  distance: number;
+};
+
+type NearbySpotsResponse = {
+  spots: Array<Spot & { distance?: number }>;
 };
 
 type NotificationState = {
@@ -471,6 +480,13 @@ export default function MapPage() {
   const [tagFilterInput, setTagFilterInput] = useState('');
   const [tagFilter, setTagFilter] = useState('');
   const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([]);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isRequestingLocation, setIsRequestingLocation] = useState(false);
+  const [locationError, setLocationError] = useState('');
+  const [nearbySpots, setNearbySpots] = useState<NearbySpot[]>([]);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [nearbyError, setNearbyError] = useState('');
+  const [spotIdFromQuery, setSpotIdFromQuery] = useState<number | null>(null);
 
   const ownerIdForQuery = useMemo(() => {
     if (ownerFilter === 'me') {
@@ -516,15 +532,109 @@ export default function MapPage() {
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '',
   });
 
+  const requestUserLocation = useCallback(() => {
+    setIsRequestingLocation(true);
+
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) {
+      setLocationError('Neizdevās noteikt atrašanās vietu. Lūdzu, ieslēdz GPS vai atļauj piekļuvi.');
+      setIsRequestingLocation(false);
+      setNearbySpots([]);
+      setNearbyError('');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coords = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        setUserLocation(coords);
+        setLocationError('');
+        setNearbyError('');
+        setIsRequestingLocation(false);
+      },
+      (error) => {
+        console.warn('Failed to retrieve user location', error);
+        setLocationError('Neizdevās noteikt atrašanās vietu. Lūdzu, ieslēdz GPS vai atļauj piekļuvi.');
+        setIsRequestingLocation(false);
+        setNearbySpots([]);
+        setNearbyError('');
+      },
+      { enableHighAccuracy: false, maximumAge: 60_000 }
+    );
+  }, []);
+
+  const fetchNearbySpots = useCallback(async () => {
+    if (!userLocation) {
+      return;
+    }
+
+    setNearbyLoading(true);
+    setNearbyError('');
+
+    try {
+      const response = await apiFetch<NearbySpotsResponse>(
+        `/spots/nearby?lat=${userLocation.lat}&lng=${userLocation.lng}&limit=10`
+      );
+
+      const normalized: NearbySpot[] = (response.spots ?? []).map((spot) => {
+        const distanceValue = Number(spot.distance ?? 0);
+        return {
+          ...spot,
+          distance: Number.isFinite(distanceValue) ? distanceValue : 0,
+        };
+      });
+
+      setNearbySpots(normalized);
+    } catch (error) {
+      console.error('Failed to load nearby spots', error);
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Neizdevās ielādēt tuvākos spotus. Lūdzu, mēģini vēlreiz.';
+      setNearbyError(message);
+      setNearbySpots([]);
+    } finally {
+      setNearbyLoading(false);
+    }
+  }, [userLocation]);
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const latParam = parseFloat(params.get('lat') ?? '');
     const lngParam = parseFloat(params.get('lng') ?? '');
+    const spotParam = parseInt(params.get('spotId') ?? '', 10);
 
     if (!Number.isNaN(latParam) && !Number.isNaN(lngParam)) {
       setCenter({ lat: latParam, lng: lngParam });
     }
+
+    if (!Number.isNaN(spotParam)) {
+      setSpotIdFromQuery(spotParam);
+    } else {
+      setSpotIdFromQuery(null);
+    }
   }, [location.search]);
+
+  useEffect(() => {
+    if (!spotIdFromQuery) {
+      return;
+    }
+
+    const targetSpot = spots.find((spot) => spot.id === spotIdFromQuery);
+    if (!targetSpot) {
+      return;
+    }
+
+    setCenter({ lat: targetSpot.lat, lng: targetSpot.lng });
+    setSelectedSpotId(targetSpot.id);
+    setSpotIdFromQuery(null);
+  }, [spotIdFromQuery, spots]);
+
+  useEffect(() => {
+    requestUserLocation();
+  }, [requestUserLocation]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -560,6 +670,14 @@ export default function MapPage() {
       return mergeOwnerLists(current, [{ id: currentUser.id, username: currentUser.username }]);
     });
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!userLocation) {
+      return;
+    }
+
+    void fetchNearbySpots();
+  }, [userLocation, fetchNearbySpots]);
 
   useEffect(() => {
     let ignore = false;
@@ -644,6 +762,8 @@ export default function MapPage() {
     () => (selectedSpotId ? spots.find((spot) => spot.id === selectedSpotId) ?? null : null),
     [selectedSpotId, spots]
   );
+
+  const nearbySpotIds = useMemo(() => new Set<number>(nearbySpots.map((spot) => spot.id)), [nearbySpots]);
 
   const handleStatusFilterChange = (nextValue: string) => {
     if (nextValue === 'public' || nextValue === 'private' || nextValue === 'mine' || nextValue === 'all') {
@@ -1079,6 +1199,23 @@ export default function MapPage() {
   const canSeePrivate = Boolean(currentUser);
   const ownerFilterValue =
     ownerFilter === 'any' || ownerFilter === 'me' ? ownerFilter : String(ownerFilter);
+  const showNearbyButtonLabel = isRequestingLocation
+    ? 'Nosakām atrašanās vietu…'
+    : nearbyLoading
+    ? 'Ielādējam tuvākos…'
+    : 'Rādīt tuvākos 10 spotus';
+  const shouldShowNearbyPanel =
+    Boolean(userLocation) || nearbyLoading || Boolean(locationError) || nearbySpots.length > 0;
+
+  const handleShowNearbyClick = () => {
+    if (!userLocation) {
+      requestUserLocation();
+      return;
+    }
+
+    setCenter(userLocation);
+    void fetchNearbySpots();
+  };
 
   return (
     <div style={{ height: 'calc(100vh - 160px)', minHeight: '520px', position: 'relative' }}>
@@ -1104,24 +1241,70 @@ export default function MapPage() {
         </div>
       ) : null}
 
-      {fetchError ? (
-        <div
+      <div
+        style={{
+          position: 'absolute',
+          top: 20,
+          right: 20,
+          zIndex: 30,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          gap: '12px',
+        }}
+      >
+        {fetchError ? (
+          <div
+            style={{
+              padding: '12px 18px',
+              borderRadius: radii.md,
+              background: palette.dangerSoft,
+              color: palette.danger,
+              fontWeight: 600,
+              boxShadow: shadows.soft,
+              maxWidth: '280px',
+              textAlign: 'right',
+            }}
+          >
+            {fetchError}
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={handleShowNearbyClick}
+          className="spotz-btn spotz-btn--primary"
+          disabled={isRequestingLocation || nearbyLoading}
           style={{
-            position: 'absolute',
-            top: 20,
-            right: 20,
-            padding: '12px 18px',
-            borderRadius: radii.md,
-            background: palette.dangerSoft,
-            color: palette.danger,
+            padding: '10px 16px',
+            borderRadius: radii.pill,
             fontWeight: 600,
-            zIndex: 15,
-            boxShadow: shadows.soft,
+            pointerEvents: 'auto',
+            minWidth: '220px',
           }}
+          aria-busy={isRequestingLocation || nearbyLoading}
         >
-          {fetchError}
-        </div>
-      ) : null}
+          {showNearbyButtonLabel}
+        </button>
+
+        {locationError ? (
+          <div
+            style={{
+              padding: '10px 16px',
+              borderRadius: radii.md,
+              background: palette.dangerSoft,
+              color: palette.danger,
+              fontWeight: 600,
+              boxShadow: shadows.soft,
+              maxWidth: '280px',
+              textAlign: 'right',
+            }}
+          >
+            {locationError}
+          </div>
+        ) : null}
+
+      </div>
 
       <div
         style={{
@@ -1264,13 +1447,30 @@ export default function MapPage() {
             options={MAP_OPTIONS}
             onClick={handleMapClick}
           >
-            {spots.map((spot) => (
+            {userLocation ? (
               <Marker
-                key={spot.id}
-                position={{ lat: spot.lat, lng: spot.lng }}
-                onClick={() => setSelectedSpotId(spot.id)}
+                position={userLocation}
+                icon="http://maps.google.com/mapfiles/ms/icons/blue-dot.png"
+                title="Tava atrašanās vieta"
+                zIndex={999}
               />
-            ))}
+            ) : null}
+            {spots.map((spot) => {
+              const isNearby = nearbySpotIds.has(spot.id);
+              return (
+                <Marker
+                  key={spot.id}
+                  position={{ lat: spot.lat, lng: spot.lng }}
+                  onClick={() => setSelectedSpotId(spot.id)}
+                  icon={
+                    isNearby
+                      ? 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
+                      : undefined
+                  }
+                  zIndex={isNearby ? 50 : undefined}
+                />
+              );
+            })}
             {renderInfoWindow()}
           </GoogleMap>
         </div>
@@ -1287,6 +1487,101 @@ export default function MapPage() {
           <span style={{ color: palette.textSecondary, fontWeight: 600 }}>Loading map…</span>
         </div>
       )}
+
+      {shouldShowNearbyPanel ? (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 20,
+            right: 20,
+            zIndex: 25,
+            maxWidth: '320px',
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            className="spotz-card"
+            style={{
+              padding: '18px',
+              borderRadius: radii.lg,
+              border: `1px solid ${palette.border}`,
+              boxShadow: shadows.soft,
+              background: 'rgba(15, 23, 42, 0.88)',
+              backdropFilter: 'var(--backdrop-blur)',
+              pointerEvents: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}
+          >
+            <h3 style={{ margin: 0, fontSize: '16px', color: palette.textPrimary }}>
+              Tavi tuvākie spoti
+            </h3>
+
+            {locationError ? (
+              <p style={{ margin: 0, color: palette.danger, fontWeight: 600 }}>
+                {locationError}
+              </p>
+            ) : nearbyLoading ? (
+              <p style={{ margin: 0, color: palette.accent }}>Ielādējam tuvākos spotus…</p>
+            ) : nearbySpots.length ? (
+              <ul
+                style={{
+                  listStyle: 'none',
+                  padding: 0,
+                  margin: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  maxHeight: '220px',
+                  overflowY: 'auto',
+                }}
+              >
+                {nearbySpots.map((spot) => {
+                  const active = selectedSpotId === spot.id;
+                  return (
+                    <li key={spot.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCenter({ lat: spot.lat, lng: spot.lng });
+                          setSelectedSpotId(spot.id);
+                        }}
+                        className="spotz-btn spotz-btn--ghost"
+                        style={{
+                          width: '100%',
+                          justifyContent: 'space-between',
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '10px 14px',
+                          borderRadius: radii.md,
+                          border: `1px solid ${active ? palette.accent : palette.border}`,
+                          background: active ? 'rgba(34, 197, 94, 0.18)' : 'rgba(15, 23, 42, 0.6)',
+                          color: palette.textPrimary,
+                          fontWeight: 600,
+                        }}
+                      >
+                        <span style={{ textAlign: 'left' }}>{spot.name}</span>
+                        <span style={{ color: palette.accent }}>
+                          {spot.distance.toFixed(1)} km
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p style={{ margin: 0, color: palette.textMuted }}>
+                Nav atrasti tuvumā esoši spoti.
+              </p>
+            )}
+
+            {nearbyError && !nearbyLoading && !locationError ? (
+              <p style={{ margin: 0, color: palette.accent }}>{nearbyError}</p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {loading ? (
         <div
