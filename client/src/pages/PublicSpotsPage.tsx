@@ -263,7 +263,7 @@ export default function PublicSpotsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  the [sort, setSort] = useState<SortOption>('latest');
+  const [sort, setSort] = useState<SortOption>('latest');
   const [deletingSpotId, setDeletingSpotId] = useState<number | null>(null);
 
   useEffect(() => {
