@@ -486,6 +486,7 @@ export default function MapPage() {
   const [nearbySpots, setNearbySpots] = useState<NearbySpot[]>([]);
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [nearbyError, setNearbyError] = useState('');
+  const [spotIdFromQuery, setSpotIdFromQuery] = useState<number | null>(null);
 
   const ownerIdForQuery = useMemo(() => {
     if (ownerFilter === 'me') {
@@ -603,15 +604,40 @@ export default function MapPage() {
     const params = new URLSearchParams(location.search);
     const latParam = parseFloat(params.get('lat') ?? '');
     const lngParam = parseFloat(params.get('lng') ?? '');
+    const spotParam = parseInt(params.get('spotId') ?? '', 10);
 
     if (!Number.isNaN(latParam) && !Number.isNaN(lngParam)) {
       setCenter({ lat: latParam, lng: lngParam });
     }
+
+    if (!Number.isNaN(spotParam)) {
+      setSpotIdFromQuery(spotParam);
+    } else {
+      setSpotIdFromQuery(null);
+    }
   }, [location.search]);
 
+  // ✅ Šis bija konflikta fragments — tagad salabots:
+  useEffect(() => {
+    if (!spotIdFromQuery) {
+      return;
+    }
+
+    const targetSpot = spots.find((spot) => spot.id === spotIdFromQuery);
+    if (!targetSpot) {
+      return;
+    }
+
+    setCenter({ lat: targetSpot.lat, lng: targetSpot.lng });
+    setSelectedSpotId(targetSpot.id);
+    setSpotIdFromQuery(null);
+  }, [spotIdFromQuery, spots]);
+
+  // ✅ Šis paliek, lai automātiski nolasītu lietotāja atrašanās vietu
   useEffect(() => {
     requestUserLocation();
   }, [requestUserLocation]);
+
 
   useEffect(() => {
     if (typeof window === 'undefined') {
