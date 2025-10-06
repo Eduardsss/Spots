@@ -7,6 +7,7 @@ import HomePage from './pages/HomePage';
 import MapPage from './pages/MapPage';
 import PublicSpotsPage from './pages/PublicSpotsPage';
 import MySpotsPage from './pages/MySpotsPage';
+import AdminReportsPage from './pages/AdminReportsPage';
 import { palette, radii, shadows, transitions } from './styles/theme';
 
 function Placeholder({ title, description }: { title: string; description?: string }) {
@@ -66,6 +67,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <MySpotsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="admin/reports"
+          element={
+            <ProtectedRoute requireAdmin>
+              <AdminReportsPage />
             </ProtectedRoute>
           }
         />
