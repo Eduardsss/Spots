@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { SpotComments } from '../components/SpotComments';
 import { apiFetch } from '../lib/api';
 import { palette, radii, shadows } from '../styles/theme';
@@ -16,6 +17,8 @@ type Spot = {
   name: string;
   description: string | null;
   image: string | null;
+  lat: number;
+  lng: number;
   status: 'public' | 'private';
   likesCount: number;
   likedByCurrentUser?: boolean;
@@ -36,6 +39,7 @@ type SpotCardProps = {
   onToggleLike: (spot: Spot) => void;
   onDelete: (spot: Spot) => void;
   currentUser: AuthUser | null;
+  onShowOnMap: (spot: Spot) => void;
 };
 
 function parseStoredUser(): AuthUser | null {
@@ -64,10 +68,13 @@ function SpotCard({
   onToggleLike,
   onDelete,
   currentUser,
+  onShowOnMap,
 }: SpotCardProps) {
   const [showComments, setShowComments] = useState(false);
   const canComment = Boolean(currentUser);
   const toggleLabel = showComments ? 'Slēpt komentārus' : 'Skatīt komentārus';
+  const isAdminManagingOther =
+    currentUser?.role === 'admin' && currentUser.id !== spot.user_id;
 
   return (
     <article
@@ -177,6 +184,20 @@ function SpotCard({
           </div>
 
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => onShowOnMap(spot)}
+              className="spotz-btn spotz-btn--outline"
+              style={{
+                padding: '8px 16px',
+                borderRadius: radii.md,
+                border: `1px solid ${palette.border}`,
+                background: palette.surfaceAlt,
+                color: palette.accentStrong,
+              }}
+            >
+              Show on map
+            </button>
             {canLike && (
               <button
                 type="button"
@@ -207,7 +228,11 @@ function SpotCard({
                 className="spotz-btn spotz-btn--danger"
                 style={{ padding: '8px 16px', borderRadius: radii.md, opacity: isDeleting ? 0.6 : 1 }}
               >
-                {isDeleting ? 'Deleting…' : 'Delete'}
+                {isDeleting
+                  ? 'Deleting…'
+                  : isAdminManagingOther
+                  ? 'Delete (admin)'
+                  : 'Delete'}
               </button>
             )}
           </div>
@@ -258,6 +283,7 @@ function SpotCard({
 }
 
 export default function PublicSpotsPage() {
+  const navigate = useNavigate();
   const [user, setUser] = useState<AuthUser | null>(() => parseStoredUser());
   const [spots, setSpots] = useState<Spot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -409,6 +435,23 @@ export default function PublicSpotsPage() {
     }
   };
 
+  const handleShowOnMap = (spot: Spot) => {
+    const params = new URLSearchParams();
+    params.set('spotId', String(spot.id));
+
+    if (
+      typeof spot.lat === 'number' &&
+      Number.isFinite(spot.lat) &&
+      typeof spot.lng === 'number' &&
+      Number.isFinite(spot.lng)
+    ) {
+      params.set('lat', String(spot.lat));
+      params.set('lng', String(spot.lng));
+    }
+
+    navigate(`/map?${params.toString()}`);
+  };
+
   const isAdmin = user?.role === 'admin';
 
   return (
@@ -553,6 +596,7 @@ export default function PublicSpotsPage() {
                 onToggleLike={handleToggleLike}
                 onDelete={handleDeleteSpot}
                 currentUser={user}
+                onShowOnMap={handleShowOnMap}
               />
             ))}
           </div>
