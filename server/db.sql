@@ -23,6 +23,14 @@ CREATE TABLE IF NOT EXISTS spots (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS spot_images (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  spot_id INT NOT NULL,
+  image LONGTEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (spot_id) REFERENCES spots(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS spot_likes (
   id INT AUTO_INCREMENT PRIMARY KEY,
   spot_id INT NOT NULL,
@@ -53,6 +61,18 @@ CREATE TABLE IF NOT EXISTS spot_comments (
   user_id INT NOT NULL,
   content TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
   FOREIGN KEY (spot_id) REFERENCES spots(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS reports (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  reporter_id INT NOT NULL,
+  target_type ENUM('spot','comment') NOT NULL,
+  target_id INT NOT NULL,
+  reason TEXT,
+  status ENUM('pending','resolved','dismissed') NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE
 );

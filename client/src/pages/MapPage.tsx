@@ -16,6 +16,7 @@ import {
   useJsApiLoader,
 } from '@react-google-maps/api';
 import { SpotComments } from '../components/SpotComments';
+import { SpotGallery } from '../components/SpotGallery';
 import { TagInput } from '../components/TagInput';
 import { apiFetch } from '../lib/api';
 import {
@@ -39,6 +40,7 @@ type Spot = {
   name: string;
   description: string | null;
   image: string | null;
+  images: string[];
   lat: number;
   lng: number;
   status: 'public' | 'private';
@@ -48,7 +50,7 @@ type Spot = {
     id: number;
     username: string;
     profile_image: string | null;
-  };
+  }; 
   tags: string[];
 };
 
@@ -57,6 +59,7 @@ type SpotFormValues = {
   description: string;
   status: 'public' | 'private';
   image: string | null;
+  images: string[];
   tags: string[];
 };
 
@@ -66,7 +69,7 @@ type OwnerOption = {
 };
 
 type SpotFormSubmission = SpotFormValues & {
-  imageChanged: boolean;
+  imagesChanged: boolean;
 };
 
 type SpotFormState =
@@ -211,13 +214,11 @@ function SpotFormModal({
   const [name, setName] = useState(initialValues.name);
   const [description, setDescription] = useState(initialValues.description);
   const [status, setStatus] = useState<'public' | 'private'>(initialValues.status);
-  const [imageState, setImageState] = useState<{
-    preview: string | null;
-    value: string | null;
+  const [galleryState, setGalleryState] = useState<{
+    previews: string[];
     changed: boolean;
   }>({
-    preview: initialValues.image,
-    value: initialValues.image,
+    previews: [...initialValues.images],
     changed: false,
   });
   const [tags, setTags] = useState<string[]>([...initialValues.tags]);
@@ -231,32 +232,41 @@ function SpotFormModal({
     setName(initialValues.name);
     setDescription(initialValues.description);
     setStatus(initialValues.status);
-    setImageState({
-      preview: initialValues.image,
-      value: initialValues.image,
+    setGalleryState({
+      previews: [...initialValues.images],
       changed: false,
     });
     setTags([...initialValues.tags]);
   }, [initialValues, open]);
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      setImageState({ preview: null, value: null, changed: true });
+    const files = Array.from(event.target.files ?? []);
+
+    if (!files.length) {
       return;
     }
 
     try {
-      const base64 = await fileToBase64(file);
-      setImageState({ preview: base64, value: base64, changed: true });
+      const base64List = await Promise.all(files.map((file) => fileToBase64(file)));
+      setGalleryState((current) => {
+        const combined = [...current.previews, ...base64List];
+        const limited = combined.slice(0, 6);
+        return { previews: limited, changed: true };
+      });
     } catch (err) {
       console.error('Failed to convert image', err);
-      setImageState((current) => ({ ...current, changed: false }));
     }
   };
 
-  const handleRemoveImage = () => {
-    setImageState({ preview: null, value: null, changed: true });
+  const handleRemoveImage = (index: number) => {
+    setGalleryState((current) => {
+      const next = current.previews.filter((_, i) => i !== index);
+      return { previews: next, changed: true };
+    });
+  };
+
+  const handleClearImages = () => {
+    setGalleryState({ previews: [], changed: true });
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -265,9 +275,10 @@ function SpotFormModal({
       name: name.trim(),
       description: description,
       status,
-      image: imageState.value,
+      image: galleryState.previews[0] ?? null,
+      images: galleryState.previews,
       tags,
-      imageChanged: imageState.changed,
+      imagesChanged: galleryState.changed,
     });
   };
 
@@ -385,59 +396,119 @@ function SpotFormModal({
           </span>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', color: palette.textPrimary }}>
-          <span style={{ fontWeight: 600 }}>Cover image</span>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', color: palette.textPrimary }}>
+          <span style={{ fontWeight: 600 }}>Fotogrāfijas</span>
+          <p style={{ margin: 0, fontSize: '12px', color: palette.textMuted }}>
+            Augšupielādē līdz 6 attēliem. Pirmais attēls tiks izmantots kā galvenais attēls kartē un sarakstos.
+          </p>
+
+          {galleryState.previews.length ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div
+                className="spotz-card"
+                style={{ padding: 0, overflow: 'hidden', borderRadius: radii.lg, border: `1px solid ${palette.border}` }}
+              >
+                <img
+                  src={galleryState.previews[0]}
+                  alt="Galvenais attēls"
+                  style={{ width: '100%', maxHeight: '240px', objectFit: 'cover', display: 'block' }}
+                />
+              </div>
+
+              {galleryState.previews.length > 1 ? (
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  {galleryState.previews.map((preview, index) => (
+                    <div
+                      key={`${preview}-${index}`}
+                      style={{
+                        position: 'relative',
+                        width: '88px',
+                        height: '88px',
+                        borderRadius: radii.md,
+                        overflow: 'hidden',
+                        boxShadow: shadows.soft,
+                        border: `1px solid ${palette.border}`,
+                      }}
+                    >
+                      <img
+                        src={preview}
+                        alt={`Attēls ${index + 1}`}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(index)}
+                        className="spotz-btn spotz-btn--ghost"
+                        style={{
+                          position: 'absolute',
+                          top: '4px',
+                          right: '4px',
+                          padding: '4px 6px',
+                          borderRadius: radii.pill,
+                          fontSize: '12px',
+                          background: 'rgba(15, 23, 42, 0.5)',
+                          color: 'white',
+                        }}
+                        aria-label={`Noņemt attēlu ${index + 1}`}
+                      >
+                        ×
+                      </button>
+                      {index === 0 ? (
+                        <span
+                          style={{
+                            position: 'absolute',
+                            bottom: '4px',
+                            left: '4px',
+                            padding: '2px 6px',
+                            borderRadius: radii.pill,
+                            background: 'rgba(15, 23, 42, 0.65)',
+                            color: 'white',
+                            fontSize: '11px',
+                            letterSpacing: '0.04em',
+                          }}
+                        >
+                          Galvenais
+                        </span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : (
             <div
               style={{
-                width: '72px',
-                height: '72px',
-                borderRadius: radii.md,
+                minHeight: '120px',
+                borderRadius: radii.lg,
+                border: `1px dashed ${palette.border}`,
                 background: palette.surfaceAlt,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                overflow: 'hidden',
-                border: `1px dashed ${palette.border}`,
+                color: palette.textMuted,
+                fontSize: '14px',
               }}
             >
-              {imageState.preview ? (
-                <img
-                  src={imageState.preview}
-                  alt="Preview"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                <span style={{ fontSize: '12px', color: palette.textMuted }}>Preview</span>
-              )}
+              Vēl nav pievienotu attēlu.
             </div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <label className="spotz-btn spotz-btn--outline" style={{ padding: '10px 18px' }}>
-                Upload
-                <input type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
-              </label>
-              <button
-                type="button"
-                onClick={handleRemoveImage}
-                className="spotz-btn spotz-btn--danger"
-                style={{ padding: '10px 18px', borderRadius: radii.md }}
-                disabled={!imageState.preview}
-              >
-                Remove
-              </button>
-            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <label className="spotz-btn spotz-btn--outline" style={{ padding: '10px 18px' }}>
+              Pievienot attēlus
+              <input type="file" accept="image/*" multiple onChange={handleFileChange} style={{ display: 'none' }} />
+            </label>
+            <button
+              type="button"
+              onClick={handleClearImages}
+              className="spotz-btn spotz-btn--ghost"
+              style={{ padding: '10px 18px', borderRadius: radii.md }}
+              disabled={!galleryState.previews.length}
+            >
+              Noņemt visus
+            </button>
           </div>
         </div>
-
-        {imageState.preview ? (
-          <div className="spotz-card" style={{ padding: 0, overflow: 'hidden', borderRadius: radii.lg }}>
-            <img
-              src={imageState.preview}
-              alt="Selected spot"
-              style={{ display: 'block', width: '100%', maxHeight: '240px', objectFit: 'cover' }}
-            />
-          </div>
-        ) : null}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
           <button
@@ -825,7 +896,14 @@ export default function MapPage() {
     setFormState({
       mode: 'create',
       position: { lat, lng },
-      values: { name: '', description: '', status: 'public', image: null, tags: [] },
+      values: {
+        name: '',
+        description: '',
+        status: 'public',
+        image: null,
+        images: [],
+        tags: [],
+      },
     });
   };
 
@@ -854,6 +932,7 @@ export default function MapPage() {
         description: values.description.trim() ? values.description.trim() : null,
         status: values.status,
         image: values.image ?? null,
+        images: values.images,
         lat: formState.position.lat,
         lng: formState.position.lng,
         tags: values.tags,
@@ -897,8 +976,9 @@ export default function MapPage() {
       updates.status = values.status;
     }
 
-    if (values.imageChanged) {
+    if (values.imagesChanged) {
       updates.image = values.image ?? null;
+      updates.images = values.images;
     }
 
     if (!areTagListsEqual(values.tags, target.tags ?? [])) {
@@ -981,6 +1061,60 @@ export default function MapPage() {
     }
   };
 
+  const handleShareSpot = async (spot: Spot) => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const shareUrl = `${window.location.origin}/public?spotId=${spot.id}`;
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        setNotification({ type: 'success', message: 'Saite uz spotu ir nokopēta.' });
+        return;
+      }
+
+      throw new Error('Clipboard API is not available');
+    } catch (error) {
+      console.warn('Clipboard write failed', error);
+      window.prompt('Kopējiet šo saiti ar draugiem:', shareUrl);
+      setNotification({ type: 'success', message: 'Saite sagatavota kopēšanai.' });
+    }
+  };
+
+  const handleReportSpot = async (spot: Spot) => {
+    if (!currentUser) {
+      setNotification({ type: 'error', message: 'Lai ziņotu, nepieciešams pieteikties.' });
+      return;
+    }
+
+    const reason = window.prompt(
+      'Pastāsti, kas šajā spotā ir neatbilstošs (neobligāti):'
+    );
+
+    if (reason === null) {
+      return;
+    }
+
+    try {
+      await apiFetch('/reports', {
+        method: 'POST',
+        body: {
+          targetType: 'spot',
+          targetId: spot.id,
+          reason: reason.trim() ? reason.trim() : undefined,
+        },
+      });
+
+      setNotification({ type: 'success', message: 'Ziņojums nosūtīts moderatoriem.' });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Neizdevās nosūtīt ziņojumu par spotu.';
+      setNotification({ type: 'error', message });
+    }
+  };
+
   const canManageSpot = (spot: Spot) => {
     if (!currentUser) {
       return false;
@@ -994,6 +1128,12 @@ export default function MapPage() {
       return null;
     }
 
+    const galleryImages =
+      Array.isArray(selectedSpot.images) && selectedSpot.images.length
+        ? selectedSpot.images
+        : selectedSpot.image
+        ? [selectedSpot.image]
+        : [];
     const liked = Boolean(selectedSpot.likedByCurrentUser);
 
     return (
@@ -1060,12 +1200,8 @@ export default function MapPage() {
             </div>
           </div>
 
-          {selectedSpot.image ? (
-            <img
-              src={selectedSpot.image}
-              alt={selectedSpot.name}
-              style={{ width: '100%', borderRadius: radii.md, maxHeight: '180px', objectFit: 'cover' }}
-            />
+          {galleryImages.length ? (
+            <SpotGallery images={galleryImages} title={selectedSpot.name} height={180} />
           ) : null}
 
           {selectedSpot.description ? (
@@ -1092,36 +1228,58 @@ export default function MapPage() {
             </div>
           ) : null}
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-            {currentUser ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+              {currentUser ? (
+                <button
+                  type="button"
+                  onClick={() => handleToggleLike(selectedSpot)}
+                  className="spotz-btn"
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: radii.pill,
+                    border: liked ? `1px solid ${palette.danger}` : `1px solid ${palette.border}`,
+                    background: liked
+                      ? 'linear-gradient(135deg, rgba(248, 113, 113, 0.28), rgba(239, 68, 68, 0.4))'
+                      : palette.surfaceAlt,
+                    color: palette.danger,
+                  }}
+                >
+                  {liked ? 'Unlike' : 'Like'} · {selectedSpot.likesCount}
+                </button>
+              ) : (
+                <span
+                  className="spotz-chip"
+                  style={{ background: palette.dangerSoft, color: palette.danger }}
+                  aria-label={`${selectedSpot.likesCount} likes`}
+                >
+                  ❤ {selectedSpot.likesCount}
+                </span>
+              )}
+
               <button
                 type="button"
-                onClick={() => handleToggleLike(selectedSpot)}
-                className="spotz-btn"
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: radii.pill,
-                  border: liked ? `1px solid ${palette.danger}` : `1px solid ${palette.border}`,
-                  background: liked
-                    ? 'linear-gradient(135deg, rgba(248, 113, 113, 0.28), rgba(239, 68, 68, 0.4))'
-                    : palette.surfaceAlt,
-                  color: palette.danger,
-                }}
+                onClick={() => handleShareSpot(selectedSpot)}
+                className="spotz-btn spotz-btn--ghost"
+                style={{ padding: '8px 14px', borderRadius: radii.md }}
               >
-                {liked ? 'Unlike' : 'Like'} · {selectedSpot.likesCount}
+                Kopēt saiti
               </button>
-            ) : (
-              <span
-                className="spotz-chip"
-                style={{ background: palette.dangerSoft, color: palette.danger }}
-                aria-label={`${selectedSpot.likesCount} likes`}
-              >
-                ❤ {selectedSpot.likesCount}
-              </span>
-            )}
+
+              {selectedSpot.status === 'public' ? (
+                <button
+                  type="button"
+                  onClick={() => handleReportSpot(selectedSpot)}
+                  className="spotz-btn spotz-btn--outline"
+                  style={{ padding: '8px 14px', borderRadius: radii.md, borderColor: palette.danger, color: palette.danger }}
+                >
+                  Ziņot
+                </button>
+              ) : null}
+            </div>
 
             {canManageSpot(selectedSpot) ? (
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -1134,6 +1292,7 @@ export default function MapPage() {
                         description: selectedSpot.description ?? '',
                         status: selectedSpot.status,
                         image: selectedSpot.image,
+                        images: [...(selectedSpot.images ?? [])],
                         tags: [...(selectedSpot.tags ?? [])],
                       },
                     });
@@ -1623,7 +1782,7 @@ export default function MapPage() {
         initialValues={
           formState
             ? formState.values
-            : { name: '', description: '', status: 'public', image: null, tags: [] }
+            : { name: '', description: '', status: 'public', image: null, images: [], tags: [] }
         }
         submitting={formSubmitting}
         error={formError}

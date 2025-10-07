@@ -1,5 +1,6 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { SpotGallery } from '../components/SpotGallery';
 import { TagInput } from '../components/TagInput';
 import { apiFetch } from '../lib/api';
 import { areTagListsEqual, mergeTagLists, MAX_TAGS_PER_SPOT } from '../lib/tags';
@@ -11,6 +12,7 @@ type Spot = {
   name: string;
   description: string | null;
   image: string | null;
+  images: string[];
   lat: number;
   lng: number;
   status: 'public' | 'private';
@@ -27,11 +29,12 @@ type SpotFormValues = {
   description: string;
   status: 'public' | 'private';
   image: string | null;
+  images: string[];
   tags: string[];
 };
 
 type SpotFormSubmission = SpotFormValues & {
-  imageChanged: boolean;
+  imagesChanged: boolean;
 };
 
 type TagsResponse = {
@@ -71,11 +74,10 @@ function EditSpotModal({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<'public' | 'private'>('public');
-  const [imageState, setImageState] = useState<{
-    preview: string | null;
-    value: string | null;
+  const [galleryState, setGalleryState] = useState<{
+    previews: string[];
     changed: boolean;
-  }>({ preview: null, value: null, changed: false });
+  }>({ previews: [], changed: false });
   const [tags, setTags] = useState<string[]>([]);
   const tagLimit = maxTags ?? MAX_TAGS_PER_SPOT;
 
@@ -87,7 +89,12 @@ function EditSpotModal({
     setName(spot.name);
     setDescription(spot.description ?? '');
     setStatus(spot.status);
-    setImageState({ preview: spot.image ?? null, value: spot.image ?? null, changed: false });
+    const images = Array.isArray(spot.images) && spot.images.length
+      ? [...spot.images]
+      : spot.image
+      ? [spot.image]
+      : [];
+    setGalleryState({ previews: images, changed: false });
     setTags([...(spot.tags ?? [])]);
   }, [open, spot]);
 
@@ -96,22 +103,33 @@ function EditSpotModal({
   }
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      setImageState({ preview: null, value: null, changed: true });
+    const files = Array.from(event.target.files ?? []);
+
+    if (!files.length) {
       return;
     }
 
     try {
-      const base64 = await fileToBase64(file);
-      setImageState({ preview: base64, value: base64, changed: true });
+      const base64List = await Promise.all(files.map((file) => fileToBase64(file)));
+      setGalleryState((current) => {
+        const combined = [...current.previews, ...base64List];
+        const limited = combined.slice(0, 6);
+        return { previews: limited, changed: true };
+      });
     } catch (err) {
       console.error('Failed to convert image', err);
     }
   };
 
-  const handleRemoveImage = () => {
-    setImageState({ preview: null, value: null, changed: true });
+  const handleRemoveImage = (index: number) => {
+    setGalleryState((current) => {
+      const next = current.previews.filter((_, i) => i !== index);
+      return { previews: next, changed: true };
+    });
+  };
+
+  const handleClearImages = () => {
+    setGalleryState({ previews: [], changed: true });
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -120,9 +138,10 @@ function EditSpotModal({
       name: name.trim(),
       description,
       status,
-      image: imageState.value,
+      image: galleryState.previews[0] ?? null,
+      images: galleryState.previews,
       tags,
-      imageChanged: imageState.changed,
+      imagesChanged: galleryState.changed,
     });
   };
 
@@ -192,57 +211,115 @@ function EditSpotModal({
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Image</span>
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Fotogrāfijas</span>
+            {galleryState.previews.length ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div
+                  style={{
+                    borderRadius: radii.md,
+                    overflow: 'hidden',
+                    boxShadow: shadows.soft,
+                    border: `1px solid ${palette.border}`,
+                  }}
+                >
+                  <img
+                    src={galleryState.previews[0]}
+                    alt={spot.name}
+                    style={{ width: '100%', maxHeight: '240px', objectFit: 'cover', display: 'block' }}
+                  />
+                </div>
+
+                {galleryState.previews.length > 1 ? (
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                    {galleryState.previews.map((preview, index) => (
+                      <div
+                        key={`${preview}-${index}`}
+                        style={{
+                          position: 'relative',
+                          width: 88,
+                          height: 88,
+                          borderRadius: radii.md,
+                          overflow: 'hidden',
+                          boxShadow: shadows.soft,
+                          border: `1px solid ${palette.border}`,
+                        }}
+                      >
+                        <img
+                          src={preview}
+                          alt={`Attēls ${index + 1}`}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage(index)}
+                          className="spotz-btn spotz-btn--ghost"
+                          style={{
+                            position: 'absolute',
+                            top: 4,
+                            right: 4,
+                            padding: '4px 6px',
+                            borderRadius: radii.pill,
+                            background: 'rgba(15, 23, 42, 0.6)',
+                            color: 'white',
+                            fontSize: '12px',
+                          }}
+                        >
+                          ×
+                        </button>
+                        {index === 0 ? (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              bottom: 4,
+                              left: 4,
+                              padding: '2px 6px',
+                              borderRadius: radii.pill,
+                              background: 'rgba(15, 23, 42, 0.6)',
+                              color: 'white',
+                              fontSize: '11px',
+                              letterSpacing: '0.04em',
+                            }}
+                          >
+                            Galvenais
+                          </span>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
               <div
                 style={{
-                  width: '82px',
-                  height: '82px',
+                  minHeight: 120,
                   borderRadius: radii.md,
+                  border: `1px dashed ${palette.border}`,
                   background: palette.surfaceAlt,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  overflow: 'hidden',
-                  border: `1px dashed ${palette.border}`,
+                  color: palette.textMuted,
                 }}
               >
-                {imageState.preview ? (
-                  <img
-                    src={imageState.preview}
-                    alt={spot.name}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <span style={{ color: palette.textMuted, fontSize: '12px' }}>No image</span>
-                )}
+                Vēl nav pievienotu attēlu.
               </div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <label className="spotz-btn spotz-btn--outline" style={{ padding: '10px 18px' }}>
-                  {imageState.preview ? 'Replace image' : 'Choose image'}
-                  <input type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
-                </label>
-                <button
-                  type="button"
-                  onClick={handleRemoveImage}
-                  className="spotz-btn spotz-btn--danger"
-                  style={{ padding: '10px 18px', borderRadius: radii.md }}
-                  disabled={!imageState.preview}
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
+            )}
 
-            {imageState.preview ? (
-              <div className="spotz-card" style={{ padding: 0, overflow: 'hidden', borderRadius: radii.lg }}>
-                <img
-                  src={imageState.preview}
-                  alt={spot.name}
-                  style={{ width: '100%', maxHeight: '240px', objectFit: 'cover' }}
-                />
-              </div>
-            ) : null}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <label className="spotz-btn spotz-btn--outline" style={{ padding: '10px 18px' }}>
+                Pievienot attēlus
+                <input type="file" accept="image/*" multiple onChange={handleFileChange} style={{ display: 'none' }} />
+              </label>
+              <button
+                type="button"
+                onClick={handleClearImages}
+                className="spotz-btn spotz-btn--ghost"
+                style={{ padding: '10px 18px', borderRadius: radii.md }}
+                disabled={!galleryState.previews.length}
+              >
+                Noņemt visus
+              </button>
+            </div>
           </div>
 
           {error ? (
@@ -296,6 +373,13 @@ function SpotCard({
   onDelete: (spot: Spot) => void;
 }) {
   const statusIsPublic = spot.status === 'public';
+  const galleryImages =
+    Array.isArray(spot.images) && spot.images.length
+      ? spot.images
+      : spot.image
+      ? [spot.image]
+      : [];
+  const tagList = Array.isArray(spot.tags) ? spot.tags : [];
 
   return (
     <article
@@ -336,9 +420,9 @@ function SpotCard({
             ? spot.description
             : 'No description provided.'}
         </p>
-        {spot.tags.length ? (
+        {tagList.length ? (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            {spot.tags.map((tag) => (
+            {tagList.map((tag) => (
               <span
                 key={tag}
                 className="spotz-chip"
@@ -381,28 +465,8 @@ function SpotCard({
         </div>
       </div>
 
-      <div
-        style={{
-          width: '240px',
-          borderRadius: radii.lg,
-          overflow: 'hidden',
-          background: statusIsPublic
-            ? 'linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(29, 78, 216, 0.2))'
-            : 'linear-gradient(135deg, rgba(14, 116, 144, 0.24), rgba(8, 145, 178, 0.26))',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {spot.image ? (
-          <img
-            src={spot.image}
-            alt={spot.name}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
-        ) : (
-          <span style={{ color: palette.textMuted, fontWeight: 700, letterSpacing: '0.08em' }}>Spotz</span>
-        )}
+      <div style={{ width: 'min(260px, 100%)', flexShrink: 0 }}>
+        <SpotGallery images={galleryImages} title={spot.name} height={220} />
       </div>
     </article>
   );
@@ -511,8 +575,9 @@ export default function MySpotsPage() {
         status: values.status,
       };
 
-      if (values.imageChanged) {
+      if (values.imagesChanged) {
         payload.image = values.image;
+        payload.images = values.images;
       }
 
       if (!areTagListsEqual(values.tags, editingSpot.tags ?? [])) {

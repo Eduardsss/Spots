@@ -59,6 +59,8 @@ function SpotComments({
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [reportTarget, setReportTarget] = useState<number | null>(null);
+  const [statusMessage, setStatusMessage] = useState('');
 
   const isAdmin = currentUser?.role === 'admin';
 
@@ -99,6 +101,22 @@ function SpotComments({
       active = false;
     };
   }, [spotId]);
+
+  useEffect(() => {
+    if (!statusMessage) {
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setStatusMessage('');
+    }, 4000);
+
+    return () => window.clearTimeout(timeout);
+  }, [statusMessage]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -142,6 +160,8 @@ function SpotComments({
 
     try {
       setDeleteTarget(comment.id);
+      setError('');
+      setStatusMessage('');
       await apiFetch(`/spots/${spotId}/comments/${comment.id}`, {
         method: 'DELETE',
       });
@@ -152,6 +172,48 @@ function SpotComments({
       setError(message);
     } finally {
       setDeleteTarget(null);
+    }
+  };
+
+  const handleReport = async (comment: SpotComment) => {
+    if (!currentUser) {
+      setError('Lai ziņotu par komentāru, lūdzu, piesakies.');
+      return;
+    }
+
+    if (currentUser.id === comment.user.id) {
+      setError('Tu nevari ziņot par savu komentāru.');
+      return;
+    }
+
+    const reason = window.prompt(
+      'Pastāsti, kāpēc šis komentārs ir neatbilstošs (neobligāti):'
+    );
+
+    if (reason === null) {
+      return;
+    }
+
+    try {
+      setReportTarget(comment.id);
+      setError('');
+      setStatusMessage('');
+      await apiFetch('/reports', {
+        method: 'POST',
+        body: {
+          targetType: 'comment',
+          targetId: comment.id,
+          reason: reason.trim() ? reason.trim() : undefined,
+        },
+      });
+
+      setStatusMessage('Ziņojums par komentāru nosūtīts moderatoriem.');
+      setError('');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Neizdevās nosūtīt ziņojumu.';
+      setError(message);
+    } finally {
+      setReportTarget(null);
     }
   };
 
@@ -212,6 +274,21 @@ function SpotComments({
           }}
         >
           {error}
+        </div>
+      ) : null}
+
+      {statusMessage ? (
+        <div
+          style={{
+            padding: '8px 12px',
+            borderRadius: radii.md,
+            background: palette.successSoft,
+            color: palette.success,
+            fontSize: '13px',
+            boxShadow: shadows.soft,
+          }}
+        >
+          {statusMessage}
         </div>
       ) : null}
 
@@ -278,7 +355,14 @@ function SpotComments({
                 )}
               </div>
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: '10px',
+                    alignItems: 'flex-start',
+                  }}
+                >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <span style={{ fontWeight: 600, color: palette.textPrimary }}>
                       {comment.user.username}
@@ -287,25 +371,46 @@ function SpotComments({
                       {formattedDate}
                     </span>
                   </div>
-                  {isAdmin ? (
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(comment)}
-                      disabled={deleteTarget === comment.id}
-                      style={{
-                        border: 'none',
-                        background: 'transparent',
-                        color: palette.danger,
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        opacity: deleteTarget === comment.id ? 0.6 : 1,
-                        transition: 'opacity 0.2s ease',
-                      }}
-                    >
-                      Dzēst
-                    </button>
-                  ) : null}
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {currentUser && currentUser.id !== comment.user.id ? (
+                      <button
+                        type="button"
+                        onClick={() => handleReport(comment)}
+                        disabled={reportTarget === comment.id}
+                        style={{
+                          border: 'none',
+                          background: 'transparent',
+                          color: palette.accentStrong,
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          opacity: reportTarget === comment.id ? 0.6 : 1,
+                          transition: 'opacity 0.2s ease',
+                        }}
+                      >
+                        Ziņot
+                      </button>
+                    ) : null}
+                    {isAdmin ? (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(comment)}
+                        disabled={deleteTarget === comment.id}
+                        style={{
+                          border: 'none',
+                          background: 'transparent',
+                          color: palette.danger,
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          opacity: deleteTarget === comment.id ? 0.6 : 1,
+                          transition: 'opacity 0.2s ease',
+                        }}
+                      >
+                        Dzēst
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 <p
                   style={{
