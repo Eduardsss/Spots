@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { SpotComments } from '../components/SpotComments';
+import { SpotGallery } from '../components/SpotGallery';
 import { apiFetch } from '../lib/api';
 import { palette, radii, shadows } from '../styles/theme';
 
@@ -17,6 +18,7 @@ type Spot = {
   name: string;
   description: string | null;
   image: string | null;
+  images: string[];
   lat: number;
   lng: number;
   status: 'public' | 'private';
@@ -40,6 +42,10 @@ type SpotCardProps = {
   onDelete: (spot: Spot) => void;
   currentUser: AuthUser | null;
   onShowOnMap: (spot: Spot) => void;
+  onShare: (spot: Spot) => void;
+  onReport: (spot: Spot) => void;
+  highlighted?: boolean;
+  initiallyOpenComments?: boolean;
 };
 
 function parseStoredUser(): AuthUser | null {
@@ -69,15 +75,33 @@ function SpotCard({
   onDelete,
   currentUser,
   onShowOnMap,
+  onShare,
+  onReport,
+  highlighted = false,
+  initiallyOpenComments = false,
 }: SpotCardProps) {
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(initiallyOpenComments);
   const canComment = Boolean(currentUser);
   const toggleLabel = showComments ? 'Slēpt komentārus' : 'Skatīt komentārus';
   const isAdminManagingOther =
     currentUser?.role === 'admin' && currentUser.id !== spot.user_id;
+  const galleryImages =
+    Array.isArray(spot.images) && spot.images.length
+      ? spot.images
+      : spot.image
+      ? [spot.image]
+      : [];
+  const canReport = Boolean(currentUser) && currentUser!.id !== spot.user_id;
+
+  useEffect(() => {
+    if (initiallyOpenComments) {
+      setShowComments(true);
+    }
+  }, [initiallyOpenComments]);
 
   return (
     <article
+      id={`spot-card-${spot.id}`}
       className="spotz-card"
       style={{
         display: 'flex',
@@ -85,37 +109,14 @@ function SpotCard({
         borderRadius: radii.lg,
         overflow: 'hidden',
         background: palette.surface,
-        border: `1px solid ${palette.border}`,
-        boxShadow: shadows.soft,
+        border: highlighted ? `2px solid ${palette.accentStrong}` : `1px solid ${palette.border}`,
+        boxShadow: highlighted ? shadows.medium : shadows.soft,
+        transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
       }}
     >
-      {spot.image ? (
-        <img
-          src={spot.image}
-          alt={spot.name}
-          style={{
-            width: '100%',
-            height: '200px',
-            objectFit: 'cover',
-          }}
-        />
-      ) : (
-        <div
-          style={{
-            height: '200px',
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.2), rgba(29, 78, 216, 0.24))',
-            color: palette.textSecondary,
-            fontWeight: 600,
-            letterSpacing: '0.08em',
-          }}
-        >
-          Spotz
-        </div>
-      )}
+      <div style={{ borderBottom: `1px solid ${palette.border}` }}>
+        <SpotGallery images={galleryImages} title={spot.name} height={220} />
+      </div>
 
       <div
         style={{
@@ -171,19 +172,11 @@ function SpotCard({
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginTop: 'auto',
             gap: '12px',
+            flexWrap: 'wrap',
           }}
         >
-          <div
-            className="spotz-chip"
-            style={{ background: palette.accentGradientSoft, color: palette.accentStrong }}
-          >
-            <span aria-hidden="true">❤️</span>
-            <span>{spot.likesCount}</span>
-          </div>
-
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
             <button
               type="button"
               onClick={() => onShowOnMap(spot)}
@@ -198,7 +191,41 @@ function SpotCard({
             >
               Show on map
             </button>
-            {canLike && (
+            <button
+              type="button"
+              onClick={() => onShare(spot)}
+              className="spotz-btn spotz-btn--ghost"
+              style={{ padding: '8px 14px', borderRadius: radii.md }}
+            >
+              Kopēt saiti
+            </button>
+            {canReport ? (
+              <button
+                type="button"
+                onClick={() => onReport(spot)}
+                className="spotz-btn spotz-btn--outline"
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: radii.md,
+                  borderColor: palette.danger,
+                  color: palette.danger,
+                }}
+              >
+                Ziņot
+              </button>
+            ) : null}
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div
+              className="spotz-chip"
+              style={{ background: palette.accentGradientSoft, color: palette.accentStrong }}
+            >
+              <span aria-hidden="true">❤️</span>
+              <span>{spot.likesCount}</span>
+            </div>
+
+            {canLike ? (
               <button
                 type="button"
                 onClick={() => onToggleLike(spot)}
@@ -218,9 +245,9 @@ function SpotCard({
               >
                 {spot.likedByCurrentUser ? 'Unlike' : 'Like'}
               </button>
-            )}
+            ) : null}
 
-            {canDelete && (
+            {canDelete ? (
               <button
                 type="button"
                 onClick={() => onDelete(spot)}
@@ -234,7 +261,7 @@ function SpotCard({
                   ? 'Delete (admin)'
                   : 'Delete'}
               </button>
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -284,6 +311,7 @@ function SpotCard({
 
 export default function PublicSpotsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState<AuthUser | null>(() => parseStoredUser());
   const [spots, setSpots] = useState<Spot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -291,6 +319,8 @@ export default function PublicSpotsPage() {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortOption>('latest');
   const [deletingSpotId, setDeletingSpotId] = useState<number | null>(null);
+  const [highlightedSpotId, setHighlightedSpotId] = useState<number | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -321,6 +351,19 @@ export default function PublicSpotsPage() {
       window.removeEventListener('storage', handleStorage);
     };
   }, []);
+
+  useEffect(() => {
+    if (!statusMessage) {
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setStatusMessage(null), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [statusMessage]);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -365,6 +408,32 @@ export default function PublicSpotsPage() {
       isCancelled = true;
     };
   }, [queryString]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const spotParam = parseInt(params.get('spotId') ?? '', 10);
+
+    if (!Number.isNaN(spotParam)) {
+      setHighlightedSpotId(spotParam);
+    } else {
+      setHighlightedSpotId(null);
+    }
+  }, [location.search]);
+
+  useEffect(() => {
+    if (!highlightedSpotId) {
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const element = document.getElementById(`spot-card-${highlightedSpotId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlightedSpotId, spots]);
 
   const handleToggleLike = async (spot: Spot) => {
     if (!user) {
@@ -450,6 +519,65 @@ export default function PublicSpotsPage() {
     }
 
     navigate(`/map?${params.toString()}`);
+  };
+
+  const handleShareSpot = async (spot: Spot) => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const shareUrl = `${window.location.origin}/public?spotId=${spot.id}`;
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        setStatusMessage('Saite uz spotu ir nokopēta.');
+        return;
+      }
+
+      throw new Error('Clipboard API is not available');
+    } catch (error) {
+      console.warn('Clipboard write failed', error);
+      window.prompt('Kopējiet šo saiti ar draugiem:', shareUrl);
+      setStatusMessage('Saite sagatavota kopēšanai.');
+    }
+  };
+
+  const handleReportSpot = async (spot: Spot) => {
+    if (!user) {
+      setError('Lai ziņotu par spotu, lūdzu, piesakies.');
+      return;
+    }
+
+    if (user.id === spot.user_id) {
+      setError('Tu nevari ziņot par savu spotu.');
+      return;
+    }
+
+    const reason = window.prompt(
+      'Pastāsti, kas šajā spotā ir neatbilstošs (neobligāti):'
+    );
+
+    if (reason === null) {
+      return;
+    }
+
+    try {
+      setError(null);
+      await apiFetch('/reports', {
+        method: 'POST',
+        body: {
+          targetType: 'spot',
+          targetId: spot.id,
+          reason: reason.trim() ? reason.trim() : undefined,
+        },
+      });
+
+      setStatusMessage('Ziņojums nosūtīts moderatoriem.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Neizdevās nosūtīt ziņojumu.';
+      setError(message);
+    }
   };
 
   const isAdmin = user?.role === 'admin';
@@ -541,6 +669,21 @@ export default function PublicSpotsPage() {
           </label>
         </div>
 
+        {statusMessage ? (
+          <div
+            style={{
+              padding: '16px',
+              borderRadius: radii.lg,
+              background: palette.successSoft,
+              color: palette.success,
+              border: `1px solid ${palette.border}`,
+              fontWeight: 600,
+            }}
+          >
+            {statusMessage}
+          </div>
+        ) : null}
+
         {loading ? (
           <div
             style={{
@@ -597,6 +740,10 @@ export default function PublicSpotsPage() {
                 onDelete={handleDeleteSpot}
                 currentUser={user}
                 onShowOnMap={handleShowOnMap}
+                onShare={handleShareSpot}
+                onReport={handleReportSpot}
+                highlighted={highlightedSpotId === spot.id}
+                initiallyOpenComments={highlightedSpotId === spot.id}
               />
             ))}
           </div>

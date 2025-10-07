@@ -12,6 +12,7 @@ const mapSpotRow = (row) => ({
   name: row.name,
   description: row.description,
   image: row.image,
+  images: Array.isArray(row.images) ? row.images : [],
   lat: row.lat,
   lng: row.lng,
   status: row.status,
@@ -38,6 +39,34 @@ const mapCommentRow = (row) => ({
 });
 
 const MAX_TAGS_PER_SPOT = 8;
+const MAX_IMAGES_PER_SPOT = 6;
+
+const normalizeSpotImages = (input) => {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  const normalized = [];
+
+  for (const raw of input) {
+    if (typeof raw !== "string") {
+      continue;
+    }
+
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    normalized.push(trimmed);
+
+    if (normalized.length >= MAX_IMAGES_PER_SPOT) {
+      break;
+    }
+  }
+
+  return normalized;
+};
 
 const collectTagFilters = (query) => {
   const values = [];
@@ -204,6 +233,75 @@ const attachTagsToSpots = async (spotList) => {
   return spotList;
 };
 
+const attachImagesToSpots = async (spotList) => {
+  if (!Array.isArray(spotList) || spotList.length === 0) {
+    return spotList;
+  }
+
+  const spotIds = spotList.map((spot) => spot.id);
+  const placeholders = spotIds.map(() => "?").join(", ");
+
+  const [rows] = await pool.query(
+    `SELECT spot_id, image
+     FROM spot_images
+     WHERE spot_id IN (${placeholders})
+     ORDER BY created_at ASC, id ASC`,
+    spotIds
+  );
+
+  const imagesBySpot = new Map();
+  rows.forEach((row) => {
+    if (!imagesBySpot.has(row.spot_id)) {
+      imagesBySpot.set(row.spot_id, []);
+    }
+    imagesBySpot.get(row.spot_id).push(row.image);
+  });
+
+  spotList.forEach((spot) => {
+    const images = imagesBySpot.get(spot.id) || [];
+    const normalized = normalizeSpotImages(images);
+
+    if (!normalized.length && spot.image) {
+      normalized.push(spot.image);
+    }
+
+    spot.images = normalized;
+    if (!spot.image) {
+      spot.image = normalized.length > 0 ? normalized[0] : null;
+    }
+  });
+
+  return spotList;
+};
+
+const replaceSpotImages = async (spotId, images) => {
+  await pool.query("DELETE FROM spot_images WHERE spot_id = ?", [spotId]);
+
+  if (!Array.isArray(images) || images.length === 0) {
+    return [];
+  }
+
+  const normalized = normalizeSpotImages(images);
+
+  if (!normalized.length) {
+    return [];
+  }
+
+  const values = normalized.map(() => "(?, ?)").join(", ");
+  const params = [];
+
+  normalized.forEach((image) => {
+    params.push(spotId, image);
+  });
+
+  await pool.query(
+    `INSERT INTO spot_images (spot_id, image) VALUES ${values}`,
+    params
+  );
+
+  return normalized;
+};
+
 const optionalAuth = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
@@ -282,8 +380,9 @@ const buildSpotQuery = async (filters, params, sort, currentUserId) => {
     queryParams
   );
 
-  const spots = rows.map((row) => mapSpotRow({ ...row, tags: [] }));
+  const spots = rows.map((row) => mapSpotRow({ ...row, tags: [], images: [] }));
   await attachTagsToSpots(spots);
+  await attachImagesToSpots(spots);
   return spots;
 };
 
@@ -336,8 +435,9 @@ const getSpotById = async (spotId, currentUserId = null) => {
     return null;
   }
 
-  const spot = mapSpotRow({ ...rows[0], tags: [] });
+  const spot = mapSpotRow({ ...rows[0], tags: [], images: [] });
   await attachTagsToSpots([spot]);
+  await attachImagesToSpots([spot]);
   return spot;
 };
 
@@ -503,11 +603,12 @@ router.get("/nearby", optionalAuth, async (req, res) => {
     );
 
     const spots = rows.map((row) => ({
-      ...mapSpotRow({ ...row, tags: [] }),
+      ...mapSpotRow({ ...row, tags: [], images: [] }),
       distance: Number(row.distance ?? 0),
     }));
 
     await attachTagsToSpots(spots);
+    await attachImagesToSpots(spots);
 
     return res.json({ spots });
   } catch (error) {
@@ -517,7 +618,16 @@ router.get("/nearby", optionalAuth, async (req, res) => {
 });
 
 router.post("/", authMiddleware, async (req, res) => {
-  const { name, description, image, lat, lng, status, tags: rawTags } = req.body;
+  const {
+    name,
+    description,
+    image,
+    lat,
+    lng,
+    status,
+    tags: rawTags,
+    images: rawImages,
+  } = req.body;
 
   if (!name || typeof lat === "undefined" || typeof lng === "undefined") {
     return res
@@ -535,8 +645,28 @@ router.post("/", authMiddleware, async (req, res) => {
     return res.status(400).json({ message: "Tags must be an array" });
   }
 
+  if (typeof rawImages !== "undefined" && !Array.isArray(rawImages)) {
+    return res.status(400).json({ message: "Images must be an array" });
+  }
+
   const normalizedStatus = status || "public";
   const tags = normalizeTagNames(rawTags || []);
+
+  let normalizedImages =
+    typeof rawImages === "undefined" ? [] : normalizeSpotImages(rawImages);
+
+  let coverImage;
+  if (typeof image !== "undefined") {
+    coverImage = image;
+  } else if (normalizedImages.length > 0) {
+    coverImage = normalizedImages[0];
+  } else {
+    coverImage = null;
+  }
+
+  if (normalizedImages.length === 0 && coverImage) {
+    normalizedImages = [coverImage];
+  }
 
   try {
     const [result] = await pool.query(
@@ -545,12 +675,16 @@ router.post("/", authMiddleware, async (req, res) => {
         req.user.id,
         name,
         typeof description === "undefined" ? null : description,
-        typeof image === "undefined" ? null : image,
+        coverImage ?? null,
         lat,
         lng,
         normalizedStatus,
       ]
     );
+
+    if (normalizedImages.length > 0) {
+      await replaceSpotImages(result.insertId, normalizedImages);
+    }
 
     if (tags.length > 0) {
       await syncSpotTags(result.insertId, tags);
@@ -572,14 +706,15 @@ router.put("/:id", authMiddleware, async (req, res) => {
     return res.status(400).json({ message: "Invalid spot ID" });
   }
 
-  const { name, description, image, status, tags: rawTags } = req.body;
+  const { name, description, image, status, tags: rawTags, images: rawImages } = req.body;
 
   if (
     typeof name === "undefined" &&
     typeof description === "undefined" &&
     typeof image === "undefined" &&
     typeof status === "undefined" &&
-    typeof rawTags === "undefined"
+    typeof rawTags === "undefined" &&
+    typeof rawImages === "undefined"
   ) {
     return res.status(400).json({ message: "No fields provided for update" });
   }
@@ -594,7 +729,29 @@ router.put("/:id", authMiddleware, async (req, res) => {
     return res.status(400).json({ message: "Tags must be an array" });
   }
 
+  if (typeof rawImages !== "undefined" && !Array.isArray(rawImages)) {
+    return res.status(400).json({ message: "Images must be an array" });
+  }
+
   const tags = typeof rawTags === "undefined" ? null : normalizeTagNames(rawTags);
+  const normalizedImages =
+    typeof rawImages === "undefined" ? null : normalizeSpotImages(rawImages);
+
+  let coverImageUpdate;
+  if (typeof image !== "undefined") {
+    coverImageUpdate = image;
+  } else if (Array.isArray(normalizedImages)) {
+    coverImageUpdate =
+      normalizedImages.length > 0 ? normalizedImages[0] : null;
+  }
+
+  if (
+    Array.isArray(normalizedImages) &&
+    normalizedImages.length === 0 &&
+    coverImageUpdate
+  ) {
+    normalizedImages.push(coverImageUpdate);
+  }
 
   try {
     const spot = await getSpotById(spotId);
@@ -620,9 +777,9 @@ router.put("/:id", authMiddleware, async (req, res) => {
       params.push(description);
     }
 
-    if (typeof image !== "undefined") {
+    if (typeof coverImageUpdate !== "undefined") {
       updates.push("image = ?");
-      params.push(image);
+      params.push(coverImageUpdate);
     }
 
     if (typeof status !== "undefined") {
@@ -630,13 +787,17 @@ router.put("/:id", authMiddleware, async (req, res) => {
       params.push(status);
     }
 
-    if (updates.length === 0 && tags === null) {
+    if (updates.length === 0 && tags === null && normalizedImages === null) {
       return res.status(400).json({ message: "No valid fields to update" });
     }
 
     if (updates.length > 0) {
       params.push(spotId);
       await pool.query(`UPDATE spots SET ${updates.join(", ")} WHERE id = ?`, params);
+    }
+
+    if (Array.isArray(normalizedImages)) {
+      await replaceSpotImages(spotId, normalizedImages);
     }
 
     if (Array.isArray(tags)) {
@@ -765,7 +926,7 @@ router.get("/:id/comments", async (req, res) => {
       `SELECT c.id, c.content, c.created_at, u.id AS user_id, u.username, u.profile_image
        FROM spot_comments c
        JOIN users u ON c.user_id = u.id
-       WHERE c.spot_id = ?
+       WHERE c.spot_id = ? AND c.is_deleted = 0
        ORDER BY c.created_at ASC`,
       [spotId]
     );
@@ -849,7 +1010,7 @@ router.delete("/:spotId/comments/:commentId", authMiddleware, async (req, res) =
     }
 
     const [rows] = await pool.query(
-      "SELECT id FROM spot_comments WHERE id = ? AND spot_id = ?",
+      "SELECT id FROM spot_comments WHERE id = ? AND spot_id = ? AND is_deleted = 0",
       [commentId, spotId]
     );
 
@@ -857,7 +1018,15 @@ router.delete("/:spotId/comments/:commentId", authMiddleware, async (req, res) =
       return res.status(404).json({ message: "Comment not found" });
     }
 
-    await pool.query("DELETE FROM spot_comments WHERE id = ?", [commentId]);
+    await pool.query(
+      "UPDATE spot_comments SET is_deleted = 1 WHERE id = ?",
+      [commentId]
+    );
+
+    await pool.query(
+      "UPDATE reports SET status = 'resolved' WHERE target_type = 'comment' AND target_id = ?",
+      [commentId]
+    );
 
     return res.json({ success: true });
   } catch (error) {
@@ -865,4 +1034,36 @@ router.delete("/:spotId/comments/:commentId", authMiddleware, async (req, res) =
     return res.status(500).json({ message: "Failed to delete comment" });
   }
 });
+
+router.get("/:id", optionalAuth, async (req, res) => {
+  const spotId = Number(req.params.id);
+
+  if (Number.isNaN(spotId)) {
+    return res.status(400).json({ message: "Invalid spot ID" });
+  }
+
+  try {
+    const spot = await getSpotById(
+      spotId,
+      req.user ? req.user.id : null
+    );
+
+    if (!spot) {
+      return res.status(404).json({ message: "Spot not found" });
+    }
+
+    if (
+      spot.status === "private" &&
+      (!req.user || (req.user.role !== "admin" && req.user.id !== spot.user_id))
+    ) {
+      return res.status(403).json({ message: "Spot is private" });
+    }
+
+    return res.json({ spot });
+  } catch (error) {
+    console.error("Error fetching spot", error);
+    return res.status(500).json({ message: "Failed to fetch spot" });
+  }
+});
+
 module.exports = router;
