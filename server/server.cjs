@@ -6,6 +6,7 @@ const pool = require("./src/db");
 const authRoutes = require("./src/routes/auth");
 const userRoutes = require("./src/routes/users");
 const spotRoutes = require("./src/routes/spots");
+const collectionRoutes = require("./src/routes/collections");
 const adminRoutes = require("./src/routes/admin");
 const reportRoutes = require("./src/routes/reports");
 
@@ -21,6 +22,7 @@ app.get("/health", (_req, res) => {
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/spots", spotRoutes);
+app.use("/collections", collectionRoutes);
 app.use("/admin", adminRoutes);
 app.use("/reports", reportRoutes);
 

@@ -92,6 +92,7 @@ export default function Header() {
       { path: '/map', label: 'Karte' },
       { path: '/public', label: 'Publiskie spoti' },
       { path: '/myspots', label: 'Mani spoti' },
+      { path: '/collections', label: 'Kolekcijas' },
     ],
     [],
   );

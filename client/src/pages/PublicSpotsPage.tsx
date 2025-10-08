@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SpotComments } from '../components/SpotComments';
 import { SpotGallery } from '../components/SpotGallery';
+import SaveToCollectionModal from '../components/SaveToCollectionModal';
 import { apiFetch } from '../lib/api';
 import { palette, radii, shadows } from '../styles/theme';
 
@@ -44,6 +45,7 @@ type SpotCardProps = {
   onShowOnMap: (spot: Spot) => void;
   onShare: (spot: Spot) => void;
   onReport: (spot: Spot) => void;
+  onSaveToCollection: (spot: Spot) => void;
   highlighted?: boolean;
   initiallyOpenComments?: boolean;
 };
@@ -77,6 +79,7 @@ function SpotCard({
   onShowOnMap,
   onShare,
   onReport,
+  onSaveToCollection,
   highlighted = false,
   initiallyOpenComments = false,
 }: SpotCardProps) {
@@ -198,6 +201,20 @@ function SpotCard({
               style={{ padding: '8px 14px', borderRadius: radii.md }}
             >
               Kopēt saiti
+            </button>
+            <button
+              type="button"
+              onClick={() => onSaveToCollection(spot)}
+              className="spotz-btn spotz-btn--outline"
+              style={{
+                padding: '8px 16px',
+                borderRadius: radii.md,
+                border: `1px solid ${palette.border}`,
+                background: palette.surfaceAlt,
+                color: palette.accentStrong,
+              }}
+            >
+              Saglabāt kolekcijā
             </button>
             {canReport ? (
               <button
@@ -321,6 +338,7 @@ export default function PublicSpotsPage() {
   const [deletingSpotId, setDeletingSpotId] = useState<number | null>(null);
   const [highlightedSpotId, setHighlightedSpotId] = useState<number | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [collectionSpot, setCollectionSpot] = useState<Spot | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -580,6 +598,18 @@ export default function PublicSpotsPage() {
     }
   };
 
+  const handleSaveToCollection = useCallback(
+    (spot: Spot) => {
+      if (!user) {
+        navigate('/login');
+        return;
+      }
+
+      setCollectionSpot(spot);
+    },
+    [navigate, user]
+  );
+
   const isAdmin = user?.role === 'admin';
 
   return (
@@ -741,6 +771,7 @@ export default function PublicSpotsPage() {
                 onShowOnMap={handleShowOnMap}
                 onShare={handleShareSpot}
                 onReport={handleReportSpot}
+                onSaveToCollection={handleSaveToCollection}
                 highlighted={highlightedSpotId === spot.id}
                 initiallyOpenComments={highlightedSpotId === spot.id}
               />
@@ -748,6 +779,17 @@ export default function PublicSpotsPage() {
           </div>
         )}
       </section>
+
+      <SaveToCollectionModal
+        open={Boolean(collectionSpot)}
+        spotId={collectionSpot?.id ?? null}
+        spotName={collectionSpot?.name ?? ''}
+        onClose={() => setCollectionSpot(null)}
+        onSaved={(collection) => {
+          setStatusMessage(`Spots saglabāts kolekcijā “${collection.name}”.`);
+          setCollectionSpot(null);
+        }}
+      />
     </main>
   );
 }
