@@ -181,7 +181,7 @@ function fileToBase64(file: File): Promise<string> {
     reader.onload = () => {
       resolve(typeof reader.result === 'string' ? reader.result : '');
     };
-    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+    reader.onerror = () => reject(reader.error ?? new Error('Neizdevās nolasīt failu'));
     reader.readAsDataURL(file);
   });
 }
@@ -297,13 +297,13 @@ function SpotFormModal({
             className="spotz-btn spotz-btn--ghost"
             style={{ padding: '8px 16px', borderRadius: radii.pill, fontSize: '14px' }}
           >
-            Close
+            Aizvērt
           </button>
         </div>
 
         {mode === 'create' && position ? (
           <p style={{ margin: 0, color: palette.textMuted, fontSize: '14px' }}>
-            You selected coordinates <strong>{position.lat.toFixed(5)}</strong>,{' '}
+            Izvēlētās koordinātas: <strong>{position.lat.toFixed(5)}</strong>,{' '}
             <strong>{position.lng.toFixed(5)}</strong>
           </p>
         ) : null}
@@ -323,30 +323,30 @@ function SpotFormModal({
         ) : null}
 
         <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: palette.textPrimary }}>
-          Name
+          Nosaukums
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
             required
-            placeholder="Spot title"
+            placeholder="Spota nosaukums"
             className="spotz-input"
           />
         </label>
 
         <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: palette.textPrimary }}>
-          Description
+          Apraksts
           <textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             rows={4}
-            placeholder="Share more about this spot"
+            placeholder="Pastāsti vairāk par šo spotu"
             className="spotz-input"
             style={{ resize: 'vertical', minHeight: '120px' }}
           />
         </label>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: palette.textPrimary }}>
-          <span style={{ fontWeight: 600 }}>Visibility</span>
+          <span style={{ fontWeight: 600 }}>Redzamība</span>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             <button
               type="button"
@@ -360,7 +360,7 @@ function SpotFormModal({
                 color: status === 'public' ? palette.accentStrong : palette.textPrimary,
               }}
             >
-              Public
+              Publisks
             </button>
             <button
               type="button"
@@ -377,22 +377,22 @@ function SpotFormModal({
                 color: status === 'private' ? palette.textSecondary : palette.accentStrong,
               }}
             >
-              Private
+              Privāts
             </button>
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', color: palette.textPrimary }}>
-          <span style={{ fontWeight: 600 }}>Tags</span>
+          <span style={{ fontWeight: 600 }}>Tagi</span>
           <TagInput
             value={tags}
             onChange={setTags}
             suggestions={availableTags}
             maxTags={tagLimit}
-            placeholder="Add categories like #nature or #city"
+            placeholder="Pievieno tagus, piemēram, #daba vai #pilsēta"
           />
           <span style={{ fontSize: '12px', color: palette.textMuted }}>
-            Add up to {tagLimit} tags to help others discover this spot.
+            Vari pievienot līdz {tagLimit} tagiem, lai citiem būtu vieglāk atrast šo spotu.
           </span>
         </div>
 
@@ -517,7 +517,7 @@ function SpotFormModal({
             className="spotz-btn spotz-btn--outline"
             style={{ padding: '10px 18px', borderRadius: radii.md }}
           >
-            Cancel
+            Atcelt
           </button>
           <button
             type="submit"
@@ -525,7 +525,7 @@ function SpotFormModal({
             className="spotz-btn spotz-btn--primary"
             style={{ padding: '12px 18px', borderRadius: radii.md, fontSize: '16px' }}
           >
-            {submitting ? 'Saving…' : mode === 'create' ? 'Add spot' : 'Save changes'}
+            {submitting ? 'Saglabājam…' : mode === 'create' ? 'Pievienot spotu' : 'Saglabāt izmaiņas'}
           </button>
         </div>
       </form>
@@ -805,7 +805,7 @@ export default function MapPage() {
       } catch (error) {
         if (!ignore) {
           const message =
-            error instanceof Error ? error.message : 'Failed to load spots. Please try again.';
+            error instanceof Error ? error.message : 'Neizdevās ielādēt spotus. Lūdzu, mēģini vēlreiz.';
           setFetchError(message);
           setSpots([]);
         }
@@ -919,7 +919,7 @@ export default function MapPage() {
     }
 
     if (!values.name) {
-      setFormError('Name is required.');
+      setFormError('Nosaukums ir obligāts.');
       return;
     }
 
@@ -946,9 +946,9 @@ export default function MapPage() {
       setSpots((current) => [...current, response.spot]);
       setAvailableTags((current) => mergeTagLists(current, response.spot.tags ?? []));
       handleCloseForm();
-      setNotification({ type: 'success', message: 'Spot added successfully.' });
+      setNotification({ type: 'success', message: 'Spots veiksmīgi pievienots.' });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create spot.';
+      const message = error instanceof Error ? error.message : 'Neizdevās izveidot spotu.';
       setFormError(message);
     } finally {
       setFormSubmitting(false);
@@ -986,7 +986,7 @@ export default function MapPage() {
     }
 
     if (Object.keys(updates).length === 0) {
-      setFormError('No changes to save.');
+      setFormError('Nav izmaiņu, ko saglabāt.');
       return;
     }
 
@@ -1004,9 +1004,9 @@ export default function MapPage() {
       );
       setAvailableTags((current) => mergeTagLists(current, response.spot.tags ?? []));
       handleCloseForm();
-      setNotification({ type: 'success', message: 'Spot updated successfully.' });
+      setNotification({ type: 'success', message: 'Spots atjaunināts.' });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update spot.';
+      const message = error instanceof Error ? error.message : 'Neizdevās atjaunināt spotu.';
       setFormError(message);
     } finally {
       setFormSubmitting(false);
@@ -1014,7 +1014,7 @@ export default function MapPage() {
   };
 
   const handleDeleteSpot = async (spot: Spot) => {
-    if (!window.confirm(`Delete "${spot.name}"? This cannot be undone.`)) {
+    if (!window.confirm(`Vai tiešām dzēst "${spot.name}"? Šo darbību nevarēs atsaukt.`)) {
       return;
     }
 
@@ -1022,16 +1022,16 @@ export default function MapPage() {
       await apiFetch(`/spots/${spot.id}`, { method: 'DELETE' });
       setSpots((current) => current.filter((item) => item.id !== spot.id));
       setSelectedSpotId(null);
-      setNotification({ type: 'success', message: 'Spot removed.' });
+      setNotification({ type: 'success', message: 'Spots izdzēsts.' });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete spot.';
+      const message = error instanceof Error ? error.message : 'Neizdevās dzēst spotu.';
       setNotification({ type: 'error', message });
     }
   };
 
   const handleToggleLike = async (spot: Spot) => {
     if (!currentUser) {
-      setNotification({ type: 'error', message: 'You need to be signed in to like spots.' });
+      setNotification({ type: 'error', message: 'Lai pievienotu patīk, nepieciešams pieteikties.' });
       return;
     }
 
@@ -1055,7 +1055,7 @@ export default function MapPage() {
         await apiFetch(`/spots/${spot.id}/like`, { method: 'POST' });
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to update like.';
+      const message = error instanceof Error ? error.message : 'Neizdevās atjaunināt patīk reakciju.';
       setSpots((current) => current.map((item) => (item.id === spot.id ? spot : item)));
       setNotification({ type: 'error', message });
     }
@@ -1075,7 +1075,7 @@ export default function MapPage() {
         return;
       }
 
-      throw new Error('Clipboard API is not available');
+      throw new Error('Starpliktuves API nav pieejams');
     } catch (error) {
       console.warn('Clipboard write failed', error);
       window.prompt('Kopējiet šo saiti ar draugiem:', shareUrl);
@@ -1181,7 +1181,7 @@ export default function MapPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <h3 style={{ margin: 0, fontSize: '18px', color: palette.textPrimary }}>{selectedSpot.name}</h3>
               <span style={{ fontSize: '13px', color: palette.textMuted }}>
-                Shared by {selectedSpot.owner.username} ·{' '}
+                Dalījās {selectedSpot.owner.username} ·{' '}
                 <span
                   style={{
                     padding: '2px 8px',
@@ -1194,7 +1194,7 @@ export default function MapPage() {
                     fontWeight: 600,
                   }}
                 >
-                  {selectedSpot.status === 'public' ? 'Public' : 'Private'}
+                  {selectedSpot.status === 'public' ? 'Publisks' : 'Privāts'}
                 </span>
               </span>
             </div>
@@ -1245,13 +1245,13 @@ export default function MapPage() {
                     color: palette.danger,
                   }}
                 >
-                  {liked ? 'Unlike' : 'Like'} · {selectedSpot.likesCount}
+                  {liked ? 'Noņemt patīk' : 'Patīk'} · {selectedSpot.likesCount}
                 </button>
               ) : (
                 <span
                   className="spotz-chip"
                   style={{ background: palette.dangerSoft, color: palette.danger }}
-                  aria-label={`${selectedSpot.likesCount} likes`}
+                  aria-label={`${selectedSpot.likesCount} patīk`}
                 >
                   ❤ {selectedSpot.likesCount}
                 </span>
@@ -1300,7 +1300,7 @@ export default function MapPage() {
                   className="spotz-btn spotz-btn--outline"
                   style={{ padding: '8px 14px', borderRadius: radii.md }}
                 >
-                  Edit
+                  Rediģēt
                 </button>
                 <button
                   type="button"
@@ -1308,7 +1308,7 @@ export default function MapPage() {
                   className="spotz-btn spotz-btn--danger"
                   style={{ padding: '8px 14px', borderRadius: radii.md }}
                 >
-                  Delete
+                  Dzēst
                 </button>
               </div>
             ) : null}
@@ -1351,7 +1351,7 @@ export default function MapPage() {
           textAlign: 'center',
         }}
       >
-        Failed to load Google Maps. Please check your API key.
+        Neizdevās ielādēt Google Maps. Lūdzu, pārbaudi API atslēgu.
       </div>
     );
   }
@@ -1501,7 +1501,7 @@ export default function MapPage() {
               gap: '12px',
             }}
           >
-            <h2 style={{ margin: 0, fontSize: '16px', color: palette.textPrimary }}>Map filters</h2>
+            <h2 style={{ margin: 0, fontSize: '16px', color: palette.textPrimary }}>Kartes filtri</h2>
             <button
               type="button"
               onClick={handleClearFilters}
@@ -1514,61 +1514,61 @@ export default function MapPage() {
                 opacity: hasActiveFilters ? 1 : 0.5,
               }}
             >
-              Clear
+              Notīrīt
             </button>
           </div>
 
           <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: palette.textPrimary }}>
-            Visibility
+            Redzamība
             <select
               value={statusFilter}
               onChange={(event) => handleStatusFilterChange(event.target.value)}
               className="spotz-input"
               style={{ cursor: 'pointer' }}
             >
-              <option value="all">All spots</option>
-              <option value="public">Public only</option>
+              <option value="all">Visi spoti</option>
+              <option value="public">Tikai publiskie</option>
               <option value="private" disabled={!canSeePrivate}>
-                Private only
+                Tikai privātie
               </option>
               <option value="mine" disabled={!canSeePrivate}>
-                Only my spots
+                Tikai mani spoti
               </option>
             </select>
             {!canSeePrivate ? (
               <span style={{ fontSize: '11px', color: palette.textMuted }}>
-                Sign in to view private or personal spots.
+                Piesakies, lai skatītu privātos vai savus spotus.
               </span>
             ) : null}
           </label>
 
           <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: palette.textPrimary }}>
-            Owner
+            Autors
             <select
               value={ownerFilterValue}
               onChange={(event) => handleOwnerFilterChange(event.target.value)}
               className="spotz-input"
               style={{ cursor: 'pointer' }}
             >
-              <option value="any">Any owner</option>
-              {currentUser ? <option value="me">Only me</option> : null}
+              <option value="any">Jebkurš autors</option>
+              {currentUser ? <option value="me">Tikai es</option> : null}
               {ownerOptions.map((owner) => (
                 <option key={owner.id} value={String(owner.id)}>
                   {owner.username}
-                  {currentUser && owner.id === currentUser.id ? ' (you)' : ''}
+                  {currentUser && owner.id === currentUser.id ? ' (tu)' : ''}
                 </option>
               ))}
             </select>
           </label>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: palette.textPrimary }}>
-            <span>Category</span>
+            <span>Tags</span>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <input
                 value={tagFilterInput}
                 onChange={(event) => handleTagFilterInputChange(event.target.value)}
                 onKeyDown={handleTagFilterKeyDown}
-                placeholder="#nature"
+                placeholder="#daba"
                 className="spotz-input"
                 style={{ flex: 1 }}
                 list="map-tag-options"
@@ -1579,16 +1579,16 @@ export default function MapPage() {
                 className="spotz-btn spotz-btn--outline"
                 style={{ padding: '8px 14px', borderRadius: radii.md }}
               >
-                Apply
+                Piemērot
               </button>
             </div>
             {tagFilter ? (
               <span style={{ fontSize: '12px', color: palette.accent }}>
-                Filtering by <strong>{tagFilter}</strong>
+                Filtrē pēc <strong>{tagFilter}</strong>
               </span>
             ) : (
               <span style={{ fontSize: '12px', color: palette.textMuted }}>
-                Choose a tag or enter your own to highlight matching spots.
+                Izvēlies tagu vai ieraksti savu, lai izceltu atbilstošos spotus.
               </span>
             )}
             <datalist id="map-tag-options">
@@ -1646,7 +1646,7 @@ export default function MapPage() {
             background: palette.surfaceAlt,
           }}
         >
-          <span style={{ color: palette.textSecondary, fontWeight: 600 }}>Loading map…</span>
+          <span style={{ color: palette.textSecondary, fontWeight: 600 }}>Ielādējam karti…</span>
         </div>
       )}
 
@@ -1769,13 +1769,13 @@ export default function MapPage() {
               fontWeight: 600,
             }}
           >
-            Loading spots…
+            Ielādējam spotus…
           </div>
         </div>
       ) : null}
 
       <SpotFormModal
-        title={formState?.mode === 'edit' ? 'Edit spot' : 'Add spot'}
+        title={formState?.mode === 'edit' ? 'Rediģēt spotu' : 'Pievienot spotu'}
         open={Boolean(formState)}
         onClose={handleCloseForm}
         onSubmit={formState?.mode === 'edit' ? handleEditSubmit : handleCreateSubmit}

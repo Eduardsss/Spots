@@ -106,7 +106,7 @@ export default function ProfilePopup({ user, onClose, onUserUpdated, onLogout }:
       setSelectedImageData(null);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Unable to update profile. Please try again.';
+        err instanceof Error ? err.message : 'Neizdevās atjaunināt profilu. Lūdzu, mēģini vēlreiz.';
       setError(message);
     } finally {
       setSaving(false);
@@ -137,7 +137,7 @@ export default function ProfilePopup({ user, onClose, onUserUpdated, onLogout }:
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <label htmlFor="profile-username" style={{ fontWeight: 600, color: palette.textPrimary }}>
-            Username
+            Lietotājvārds
           </label>
           <input
             id="profile-username"
@@ -150,7 +150,7 @@ export default function ProfilePopup({ user, onClose, onUserUpdated, onLogout }:
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontWeight: 600, color: palette.textPrimary }}>Profile image</span>
+          <span style={{ fontWeight: 600, color: palette.textPrimary }}>Profila attēls</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
               style={{
@@ -169,7 +169,7 @@ export default function ProfilePopup({ user, onClose, onUserUpdated, onLogout }:
               {previewImage ? (
                 <img
                   src={previewImage}
-                  alt="Profile preview"
+                  alt="Profila priekšskatījums"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
               ) : (
@@ -177,7 +177,7 @@ export default function ProfilePopup({ user, onClose, onUserUpdated, onLogout }:
               )}
             </div>
             <label className="spotz-btn spotz-btn--outline" style={{ padding: '10px 16px' }}>
-              Change
+              Mainīt
               <input
                 type="file"
                 accept="image/*"
@@ -213,7 +213,7 @@ export default function ProfilePopup({ user, onClose, onUserUpdated, onLogout }:
               fontSize: '13px',
             }}
           >
-            Profile updated!
+            Profils atjaunots!
           </div>
         ) : null}
 
@@ -223,7 +223,7 @@ export default function ProfilePopup({ user, onClose, onUserUpdated, onLogout }:
           className="spotz-btn spotz-btn--primary"
           style={{ borderRadius: radii.md, fontSize: '15px' }}
         >
-          {saving ? 'Saving…' : 'Save changes'}
+          {saving ? 'Saglabājam…' : 'Saglabāt izmaiņas'}
         </button>
       </form>
 
@@ -233,7 +233,7 @@ export default function ProfilePopup({ user, onClose, onUserUpdated, onLogout }:
         className="spotz-btn spotz-btn--danger"
         style={{ borderRadius: radii.md, width: '100%' }}
       >
-        Log out
+        Izrakstīties
       </button>
     </div>
   );
