@@ -183,34 +183,56 @@ export default function Header() {
           </button>
 
           {user ? (
-            <div style={{ position: 'relative' }}>
-              <button
-                type="button"
-                onClick={() => setIsPopupOpen((open) => !open)}
-                className="spotz-avatar"
-                style={{ padding: 0, borderRadius: radii.full, border: '2px solid rgba(37, 99, 235, 0.35)' }}
-                aria-haspopup="dialog"
-                aria-expanded={isPopupOpen}
-              >
-                {user.profile_image ? (
-                  <img
-                    src={user.profile_image}
-                    alt={user.username}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            <>
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsPopupOpen((open) => !open)}
+                  className="spotz-avatar"
+                  style={{
+                    padding: 0,
+                    borderRadius: radii.full,
+                    border: '2px solid rgba(37, 99, 235, 0.35)',
+                  }}
+                  aria-haspopup="dialog"
+                  aria-expanded={isPopupOpen}
+                >
+                  {user.profile_image ? (
+                    <img
+                      src={user.profile_image}
+                      alt={user.username}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    (user.username?.slice(0, 1) || '?').toUpperCase()
+                  )}
+                </button>
+                {isPopupOpen ? (
+                  <ProfilePopup
+                    user={user}
+                    onClose={() => setIsPopupOpen(false)}
+                    onUserUpdated={handleUserUpdated}
+                    onLogout={handleLogout}
                   />
-                ) : (
-                  (user.username?.slice(0, 1) || '?').toUpperCase()
-                )}
-              </button>
-              {isPopupOpen ? (
-                <ProfilePopup
-                  user={user}
-                  onClose={() => setIsPopupOpen(false)}
-                  onUserUpdated={handleUserUpdated}
-                  onLogout={handleLogout}
-                />
+                ) : null}
+              </div>
+
+              {user.role === 'admin' ? (
+                <Link
+                  to="/admin/reports"
+                  className="spotz-btn spotz-btn--primary"
+                  style={{
+                    padding: '8px 18px',
+                    fontSize: '14px',
+                    borderRadius: radii.pill,
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Admin panelis
+                </Link>
               ) : null}
-            </div>
+            </>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Link
