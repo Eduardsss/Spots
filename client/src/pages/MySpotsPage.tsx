@@ -1,6 +1,7 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SpotGallery } from '../components/SpotGallery';
+import SaveToCollectionModal from '../components/SaveToCollectionModal';
 import { TagInput } from '../components/TagInput';
 import { apiFetch } from '../lib/api';
 import { areTagListsEqual, mergeTagLists, MAX_TAGS_PER_SPOT } from '../lib/tags';
@@ -366,11 +367,13 @@ function SpotCard({
   onShow,
   onEdit,
   onDelete,
+  onSave,
 }: {
   spot: Spot;
   onShow: (spot: Spot) => void;
   onEdit: (spot: Spot) => void;
   onDelete: (spot: Spot) => void;
+  onSave: (spot: Spot) => void;
 }) {
   const statusIsPublic = spot.status === 'public';
   const galleryImages =
@@ -448,6 +451,14 @@ function SpotCard({
           </button>
           <button
             type="button"
+            onClick={() => onSave(spot)}
+            className="spotz-btn spotz-btn--outline"
+            style={{ padding: '10px 20px', borderRadius: radii.pill, color: palette.accent }}
+          >
+            Saglabāt kolekcijā
+          </button>
+          <button
+            type="button"
             onClick={() => onShow(spot)}
             className="spotz-btn spotz-btn--outline"
             style={{ padding: '10px 20px', borderRadius: radii.pill, color: palette.accent }}
@@ -481,6 +492,8 @@ export default function MySpotsPage() {
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [collectionSpot, setCollectionSpot] = useState<Spot | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -559,6 +572,24 @@ export default function MySpotsPage() {
     setEditError(null);
     setEditingSpot(spot);
   }, []);
+
+  const handleSaveToCollection = useCallback((spot: Spot) => {
+    setCollectionSpot(spot);
+  }, []);
+
+  useEffect(() => {
+    if (!statusMessage) {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setStatusMessage(null);
+    }, 4000);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [statusMessage]);
 
   const handleSubmitEdit = useCallback(
     async (values: SpotFormSubmission) => {
@@ -645,6 +676,21 @@ export default function MySpotsPage() {
         </button>
       </header>
 
+      {statusMessage ? (
+        <div
+          style={{
+            padding: '12px 16px',
+            borderRadius: radii.lg,
+            background: palette.successSoft,
+            color: palette.success,
+            border: `1px solid ${palette.success}`,
+            fontWeight: 500,
+          }}
+        >
+          {statusMessage}
+        </div>
+      ) : null}
+
       {loading ? (
         <p style={{ color: palette.textSecondary }}>Ielādējam tavus spotus…</p>
       ) : error ? (
@@ -671,10 +717,22 @@ export default function MySpotsPage() {
               onShow={handleShowSpot}
               onEdit={handleStartEdit}
               onDelete={handleDeleteSpot}
+              onSave={handleSaveToCollection}
             />
           ))}
         </div>
       )}
+
+      <SaveToCollectionModal
+        open={Boolean(collectionSpot)}
+        spotId={collectionSpot?.id ?? null}
+        spotName={collectionSpot?.name ?? ''}
+        onClose={() => setCollectionSpot(null)}
+        onSaved={(collection) => {
+          setStatusMessage(`Spots saglabāts kolekcijā “${collection.name}”.`);
+          setCollectionSpot(null);
+        }}
+      />
 
       <EditSpotModal
         open={Boolean(editingSpot)}

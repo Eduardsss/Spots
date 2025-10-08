@@ -41,6 +41,25 @@ CREATE TABLE IF NOT EXISTS spot_likes (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS spot_collections (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  name VARCHAR(120) NOT NULL,
+  description TEXT,
+  visibility ENUM('public', 'private') NOT NULL DEFAULT 'private',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS spot_collection_items (
+  collection_id INT NOT NULL,
+  spot_id INT NOT NULL,
+  added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (collection_id, spot_id),
+  FOREIGN KEY (collection_id) REFERENCES spot_collections(id) ON DELETE CASCADE,
+  FOREIGN KEY (spot_id) REFERENCES spots(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS tags (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(50) NOT NULL UNIQUE,
