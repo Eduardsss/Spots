@@ -39,7 +39,7 @@ function Placeholder({ title, description }: { title: string; description?: stri
       >
         <h2 style={{ margin: 0, fontSize: '32px', color: palette.textPrimary }}>{title}</h2>
         <p style={{ margin: 0, color: palette.textSecondary }}>
-          {description ?? 'This page is under construction. Check back soon!'}
+          {description ?? 'Šī sadaļa vēl tiek veidota. Aicinām paviesoties drīzumā!'}
         </p>
       </div>
     </main>
@@ -83,8 +83,8 @@ export default function App() {
           path="*"
           element={
             <Placeholder
-              title="Page not found"
-              description="We couldn’t find the page you’re looking for."
+              title="Lapa nav atrasta"
+              description="Meklētā lapa nav pieejama vai tā ir pārvietota."
             />
           }
         />

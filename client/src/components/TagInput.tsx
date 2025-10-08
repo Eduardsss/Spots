@@ -16,7 +16,7 @@ const suggestionLimit = 6;
 export function TagInput({
   value,
   onChange,
-  placeholder = 'Add a tag…',
+  placeholder = 'Pievieno tagu…',
   disabled = false,
   suggestions = [],
   maxTags,
@@ -87,7 +87,7 @@ export function TagInput({
     emit(value.filter((item) => item !== tag));
   };
 
-  const helperMessage = maxTags && value.length >= maxTags ? `Maximum of ${maxTags} tags reached.` : '';
+  const helperMessage = maxTags && value.length >= maxTags ? `Sasniegts maksimālais ${maxTags} tagu skaits.` : '';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -134,7 +134,7 @@ export function TagInput({
                 fontWeight: 700,
                 cursor: 'pointer',
               }}
-              aria-label={`Remove ${tag}`}
+              aria-label={`Noņemt ${tag}`}
             >
               ×
             </button>
@@ -179,7 +179,7 @@ export function TagInput({
             transition: `border-color ${transitions.base}`,
           }}
         >
-          <span style={{ fontSize: '12px', fontWeight: 600, color: palette.textSecondary }}>Popular:</span>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: palette.textSecondary }}>Ieteikumi:</span>
           {availableSuggestions.map((tag) => (
             <button
               key={tag}

@@ -54,7 +54,7 @@ export default function Login() {
       navigate(redirectPath, { replace: true });
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Unable to sign in. Please try again.';
+        err instanceof Error ? err.message : 'Neizdevās pieteikties. Lūdzu, mēģini vēlreiz.';
       setError(message);
     } finally {
       setSubmitting(false);
@@ -90,7 +90,7 @@ export default function Login() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <h1 style={{ margin: 0, fontSize: '28px', color: palette.textPrimary }}>Laipni lūgts atpakaļ</h1>
-          <p style={{ margin: 0, color: palette.textSecondary }}>Pieraksties, lai turpinātu atklājumus Spotz kartē.</p>
+          <p style={{ margin: 0, color: palette.textSecondary }}>Piesakies savā kontā un turpini Spotz piedzīvojumus.</p>
         </div>
 
         {state.registered && !error ? (
@@ -103,7 +103,7 @@ export default function Login() {
               color: palette.success,
             }}
           >
-            Registration successful! Please sign in.
+            Reģistrācija veiksmīga! Lūdzu, piesakies.
           </div>
         ) : null}
 
@@ -122,7 +122,7 @@ export default function Login() {
         ) : null}
 
         <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: palette.textPrimary }}>
-          Username
+          Lietotājvārds
           <input
             className="spotz-input"
             name="username"
@@ -135,7 +135,7 @@ export default function Login() {
         </label>
 
         <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: palette.textPrimary }}>
-          Password
+          Parole
           <input
             className="spotz-input"
             type="password"
@@ -154,11 +154,11 @@ export default function Login() {
           style={{ padding: '12px 16px', borderRadius: radii.md, fontSize: '16px' }}
           disabled={submitting}
         >
-          {submitting ? 'Signing in…' : 'Sign in'}
+          {submitting ? 'Piesakām…' : 'Pieteikties'}
         </button>
 
         <p style={{ margin: 0, color: palette.textSecondary, fontSize: '14px', textAlign: 'center' }}>
-          Need an account?{' '}
+          Vēlies kontu?{' '}
           <Link
             to="/register"
             style={{ color: palette.accent, fontWeight: 600, textDecoration: 'none', transition: `color ${transitions.fast}` }}
@@ -169,7 +169,7 @@ export default function Login() {
               event.currentTarget.style.color = palette.accent;
             }}
           >
-            Sign up
+            Reģistrējies
           </Link>
         </p>
       </form>

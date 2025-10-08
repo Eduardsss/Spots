@@ -15,7 +15,7 @@ export default function Register() {
     event.preventDefault();
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError('Paroles nesakrīt.');
       return;
     }
 
@@ -31,7 +31,7 @@ export default function Register() {
       navigate('/login', { state: { registered: true } });
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Unable to register. Please try again.';
+        err instanceof Error ? err.message : 'Neizdevās reģistrēties. Lūdzu, mēģini vēlreiz.';
       setError(message);
     } finally {
       setSubmitting(false);
@@ -87,7 +87,7 @@ export default function Register() {
         ) : null}
 
         <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: palette.textPrimary }}>
-          Username
+          Lietotājvārds
           <input
             className="spotz-input"
             name="username"
@@ -100,7 +100,7 @@ export default function Register() {
         </label>
 
         <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: palette.textPrimary }}>
-          Password
+          Parole
           <input
             className="spotz-input"
             type="password"
@@ -114,7 +114,7 @@ export default function Register() {
         </label>
 
         <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: palette.textPrimary }}>
-          Confirm password
+          Apstiprini paroli
           <input
             className="spotz-input"
             type="password"
@@ -133,11 +133,11 @@ export default function Register() {
           style={{ padding: '12px 16px', borderRadius: radii.md, fontSize: '16px' }}
           disabled={submitting}
         >
-          {submitting ? 'Creating account…' : 'Create account'}
+          {submitting ? 'Veidojam kontu…' : 'Izveidot kontu'}
         </button>
 
         <p style={{ margin: 0, color: palette.textSecondary, fontSize: '14px', textAlign: 'center' }}>
-          Already have an account?{' '}
+          Jau ir konts?{' '}
           <Link
             to="/login"
             style={{ color: palette.accent, fontWeight: 600, textDecoration: 'none', transition: `color ${transitions.fast}` }}
@@ -148,7 +148,7 @@ export default function Register() {
               event.currentTarget.style.color = palette.accent;
             }}
           >
-            Sign in
+            Piesakies
           </Link>
         </p>
       </form>

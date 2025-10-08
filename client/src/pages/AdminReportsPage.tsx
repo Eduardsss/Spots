@@ -703,7 +703,7 @@ export default function AdminReportsPage() {
                         {comment.author}
                       </span>
                       <span style={{ fontSize: '13px', color: palette.textMuted }}>
-                        Spot #{comment.spot_id} · {comment.spot_name}
+                        Spots Nr. {comment.spot_id} · {comment.spot_name}
                       </span>
                     </div>
                     <span style={{ fontSize: '13px', color: palette.textMuted }}>

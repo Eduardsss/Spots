@@ -89,9 +89,9 @@ export default function Header() {
 
   const navLinks = useMemo(
     () => [
-      { path: '/map', label: 'Map' },
-      { path: '/public', label: 'Public Spots' },
-      { path: '/myspots', label: 'My Spots' },
+      { path: '/map', label: 'Karte' },
+      { path: '/public', label: 'Publiskie spoti' },
+      { path: '/myspots', label: 'Mani spoti' },
     ],
     [],
   );
@@ -179,7 +179,7 @@ export default function Header() {
               minWidth: '96px',
             }}
           >
-            {theme === 'light' ? '🌞 Light' : '🌚 Dark'}
+            {theme === 'light' ? '🌞 Gaišs' : '🌚 Tumšs'}
           </button>
 
           {user ? (
@@ -240,14 +240,14 @@ export default function Header() {
                 className="spotz-btn spotz-btn--outline"
                 style={{ padding: '8px 18px', fontSize: '14px' }}
               >
-                Log in
+                Ienākt
               </Link>
               <Link
                 to="/register"
                 className="spotz-btn spotz-btn--primary"
                 style={{ padding: '8px 20px', fontSize: '14px' }}
               >
-                Sign up
+                Reģistrēties
               </Link>
             </div>
           )}

@@ -274,6 +274,97 @@ const attachImagesToSpots = async (spotList) => {
   return spotList;
 };
 
+const getTopPublicSpots = async (limit = 5, currentUserId = null) => {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 5, 50));
+
+  const likedSelect = currentUserId
+    ? ", CASE WHEN ul.user_id IS NULL THEN 0 ELSE 1 END AS likedByCurrentUser"
+    : ", 0 AS likedByCurrentUser";
+
+  const likedJoin = currentUserId
+    ? "LEFT JOIN spot_likes ul ON ul.spot_id = s.id AND ul.user_id = ?"
+    : "";
+
+  const queryParams = [];
+
+  if (currentUserId) {
+    queryParams.push(currentUserId);
+  }
+
+  queryParams.push(safeLimit);
+
+  const [rows] = await pool.query(
+    `SELECT
+        s.id,
+        s.user_id,
+        s.name,
+        s.description,
+        s.image,
+        s.lat,
+        s.lng,
+        s.status,
+        s.created_at,
+        u.username AS owner_username,
+        u.profile_image AS owner_profile_image,
+        COALESCE(l.likesCount, 0) AS likesCount
+        ${likedSelect}
+      FROM spots s
+      JOIN users u ON s.user_id = u.id
+      LEFT JOIN (
+        SELECT spot_id, COUNT(*) AS likesCount
+        FROM spot_likes
+        GROUP BY spot_id
+      ) l ON l.spot_id = s.id
+      ${likedJoin}
+      WHERE s.status = 'public'
+      ORDER BY likesCount DESC, s.created_at DESC
+      LIMIT ?`,
+    queryParams
+  );
+
+  const spots = rows.map((row) => mapSpotRow({ ...row, tags: [], images: [] }));
+  await attachTagsToSpots(spots);
+  await attachImagesToSpots(spots);
+  return spots;
+};
+
+const getTopCreators = async (limit = 3) => {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 3, 50));
+
+  const [rows] = await pool.query(
+    `SELECT
+        u.id,
+        u.username,
+        u.profile_image,
+        COALESCE(SUM(stats.likesCount), 0) AS totalLikes,
+        COALESCE(SUM(stats.publicSpotCount), 0) AS publicSpots
+      FROM users u
+      LEFT JOIN (
+        SELECT
+          s.user_id,
+          s.id AS spot_id,
+          COUNT(sl.id) AS likesCount,
+          1 AS publicSpotCount
+        FROM spots s
+        LEFT JOIN spot_likes sl ON sl.spot_id = s.id
+        WHERE s.status = 'public'
+        GROUP BY s.id
+      ) stats ON stats.user_id = u.id
+      GROUP BY u.id
+      ORDER BY totalLikes DESC, publicSpots DESC, u.username ASC
+      LIMIT ?`,
+    [safeLimit]
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    username: row.username,
+    profile_image: row.profile_image || null,
+    totalLikes: Number(row.totalLikes ?? 0),
+    publicSpots: Number(row.publicSpots ?? 0),
+  }));
+};
+
 const replaceSpotImages = async (spotId, images) => {
   await pool.query("DELETE FROM spot_images WHERE spot_id = ?", [spotId]);
 
@@ -517,6 +608,24 @@ router.get("/", optionalAuth, async (req, res) => {
   } catch (error) {
     console.error("Error fetching spots", error);
     return res.status(500).json({ message: "Failed to fetch spots" });
+  }
+});
+
+router.get("/highlights", optionalAuth, async (req, res) => {
+  try {
+    const currentUserId = req.user ? req.user.id : null;
+    const [topSpots, topCreators] = await Promise.all([
+      getTopPublicSpots(5, currentUserId),
+      getTopCreators(3),
+    ]);
+
+    return res.json({
+      topSpots,
+      topCreators,
+    });
+  } catch (error) {
+    console.error("Error fetching spot highlights", error);
+    return res.status(500).json({ message: "Failed to fetch highlights" });
   }
 });
 

@@ -86,7 +86,7 @@ function SpotComments({
         }
 
         const message =
-          err instanceof Error ? err.message : 'Failed to load comments.';
+          err instanceof Error ? err.message : 'Neizdevās ielādēt komentārus.';
         setError(message);
       } finally {
         if (active) {
@@ -146,7 +146,7 @@ function SpotComments({
       setComments((current) => [...current, data.comment]);
       setFormValue('');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to add comment.';
+      const message = err instanceof Error ? err.message : 'Neizdevās pievienot komentāru.';
       setFormError(message);
     } finally {
       setSubmitting(false);
@@ -168,7 +168,7 @@ function SpotComments({
 
       setComments((current) => current.filter((item) => item.id !== comment.id));
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete comment.';
+      const message = err instanceof Error ? err.message : 'Neizdevās dzēst komentāru.';
       setError(message);
     } finally {
       setDeleteTarget(null);

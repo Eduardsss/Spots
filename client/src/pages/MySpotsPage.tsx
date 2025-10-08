@@ -47,7 +47,7 @@ function fileToBase64(file: File): Promise<string> {
     reader.onload = () => {
       resolve(typeof reader.result === 'string' ? reader.result : '');
     };
-    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+    reader.onerror = () => reject(reader.error ?? new Error('Neizdevās nolasīt failu'));
     reader.readAsDataURL(file);
   });
 }
@@ -149,13 +149,13 @@ function EditSpotModal({
     <div className="spotz-modal-overlay" role="dialog" aria-modal="true">
       <div className="spotz-modal" style={{ width: 'min(600px, 100%)' }}>
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '24px', color: palette.textPrimary }}>Edit Spot</h2>
+          <h2 style={{ margin: 0, fontSize: '24px', color: palette.textPrimary }}>Rediģēt spotu</h2>
           <button
             type="button"
             onClick={onClose}
             className="spotz-btn spotz-btn--ghost"
             style={{ padding: '6px 12px', borderRadius: radii.pill }}
-            aria-label="Close"
+            aria-label="Aizvērt"
           >
             ×
           </button>
@@ -163,7 +163,7 @@ function EditSpotModal({
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Name</span>
+            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Nosaukums</span>
             <input
               required
               value={name}
@@ -173,7 +173,7 @@ function EditSpotModal({
           </label>
 
           <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Description</span>
+            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Apraksts</span>
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
@@ -184,29 +184,29 @@ function EditSpotModal({
           </label>
 
           <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Status</span>
+            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Statuss</span>
             <select
               value={status}
               onChange={(event) => setStatus(event.target.value as 'public' | 'private')}
               className="spotz-input"
               style={{ appearance: 'none' }}
             >
-              <option value="public">Public</option>
-              <option value="private">Private</option>
+              <option value="public">Publisks</option>
+              <option value="private">Privāts</option>
             </select>
           </label>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Tags</span>
+            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Tagi</span>
             <TagInput
               value={tags}
               onChange={setTags}
               suggestions={availableTags}
               maxTags={tagLimit}
-              placeholder="Add categories like #sunrise"
+              placeholder="Pievieno tagus, piemēram, #saullēkts"
             />
             <span style={{ fontSize: '12px', color: palette.textMuted }}>
-              Use up to {tagLimit} tags to describe this spot.
+              Var pievienot līdz {tagLimit} tagiem, lai aprakstītu šo spotu.
             </span>
           </div>
 
@@ -344,7 +344,7 @@ function EditSpotModal({
               className="spotz-btn spotz-btn--ghost"
               style={{ padding: '10px 20px', borderRadius: radii.md }}
             >
-              Cancel
+              Atcelt
             </button>
             <button
               type="submit"
@@ -352,7 +352,7 @@ function EditSpotModal({
               className="spotz-btn spotz-btn--primary"
               style={{ padding: '12px 24px', borderRadius: radii.md }}
             >
-              {submitting ? 'Saving…' : 'Save changes'}
+              {submitting ? 'Saglabājam…' : 'Saglabāt izmaiņas'}
             </button>
           </div>
         </form>
@@ -412,13 +412,13 @@ function SpotCard({
               textTransform: 'capitalize',
             }}
           >
-            {spot.status}
+            {statusIsPublic ? 'Publisks' : 'Privāts'}
           </span>
         </div>
         <p style={{ margin: 0, color: palette.textSecondary, lineHeight: 1.6 }}>
           {spot.description && spot.description.trim().length > 0
             ? spot.description
-            : 'No description provided.'}
+            : 'Apraksts nav pievienots.'}
         </p>
         {tagList.length ? (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -444,7 +444,7 @@ function SpotCard({
             className="spotz-btn spotz-btn--primary"
             style={{ padding: '10px 20px', borderRadius: radii.pill }}
           >
-            Edit
+            Rediģēt
           </button>
           <button
             type="button"
@@ -452,7 +452,7 @@ function SpotCard({
             className="spotz-btn spotz-btn--outline"
             style={{ padding: '10px 20px', borderRadius: radii.pill, color: palette.accent }}
           >
-            Show Spot
+            Parādīt kartē
           </button>
           <button
             type="button"
@@ -460,7 +460,7 @@ function SpotCard({
             className="spotz-btn spotz-btn--danger"
             style={{ padding: '10px 20px', borderRadius: radii.pill }}
           >
-            Delete
+            Dzēst
           </button>
         </div>
       </div>
@@ -520,7 +520,7 @@ export default function MySpotsPage() {
       }
     } catch (err) {
       console.error('Failed to load spots', err);
-      setError(err instanceof Error ? err.message : 'Failed to load spots');
+      setError(err instanceof Error ? err.message : 'Neizdevās ielādēt spotus');
     } finally {
       setLoading(false);
     }
@@ -539,7 +539,7 @@ export default function MySpotsPage() {
 
   const handleDeleteSpot = useCallback(
     async (spot: Spot) => {
-      const confirmed = window.confirm(`Delete "${spot.name}"? This cannot be undone.`);
+      const confirmed = window.confirm(`Vai tiešām dzēst "${spot.name}"? Šo darbību nevarēs atsaukt.`);
       if (!confirmed) {
         return;
       }
@@ -549,7 +549,7 @@ export default function MySpotsPage() {
         setSpots((current) => current.filter((item) => item.id !== spot.id));
       } catch (err) {
         console.error('Failed to delete spot', err);
-        alert('Failed to delete the spot. Please try again.');
+        alert('Neizdevās dzēst spotu. Lūdzu, mēģini vēlreiz.');
       }
     },
     []
@@ -597,7 +597,7 @@ export default function MySpotsPage() {
         setEditingSpot(null);
       } catch (err) {
         console.error('Failed to update spot', err);
-        setEditError(err instanceof Error ? err.message : 'Failed to update spot');
+        setEditError(err instanceof Error ? err.message : 'Neizdevās atjaunināt spotu');
       } finally {
         setSaving(false);
       }
@@ -617,9 +617,9 @@ export default function MySpotsPage() {
           border: `1px dashed ${palette.border}`,
         }}
       >
-        <h3 style={{ margin: 0, fontSize: '24px', color: palette.textPrimary }}>No spots yet</h3>
+        <h3 style={{ margin: 0, fontSize: '24px', color: palette.textPrimary }}>Vēl nav spotu</h3>
         <p style={{ margin: '12px 0 0', color: palette.textSecondary }}>
-          Start by adding a new spot on the map to see it listed here.
+          Sāc, pievienojot jaunu punktu kartē, un tas parādīsies šeit.
         </p>
       </div>
     ),
@@ -630,9 +630,9 @@ export default function MySpotsPage() {
     <div style={{ padding: '40px clamp(16px, 4vw, 48px) 80px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '32px', color: palette.textPrimary }}>My Spots</h1>
+          <h1 style={{ margin: 0, fontSize: '32px', color: palette.textPrimary }}>Mani spoti</h1>
           <p style={{ margin: '12px 0 0', color: palette.textSecondary }}>
-            Manage and curate your personal collection of hidden gems.
+            Pārvaldi un sakārto savus mīļākos atklājumus vienuviet.
           </p>
         </div>
         <button
@@ -641,12 +641,12 @@ export default function MySpotsPage() {
           className="spotz-btn spotz-btn--primary"
           style={{ padding: '12px 24px', borderRadius: radii.pill }}
         >
-          Refresh
+          Atsvaidzināt
         </button>
       </header>
 
       {loading ? (
-        <p style={{ color: palette.textSecondary }}>Loading your spots…</p>
+        <p style={{ color: palette.textSecondary }}>Ielādējam tavus spotus…</p>
       ) : error ? (
         <div
           role="alert"

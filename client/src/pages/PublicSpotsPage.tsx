@@ -144,7 +144,7 @@ function SpotCard({
             </p>
           ) : (
             <p style={{ margin: 0, color: palette.textMuted, fontStyle: 'italic' }}>
-              No description provided.
+              Apraksts nav pievienots.
             </p>
           )}
         </div>
@@ -189,7 +189,7 @@ function SpotCard({
                 color: palette.accentStrong,
               }}
             >
-              Show on map
+              Parādīt kartē
             </button>
             <button
               type="button"
@@ -243,7 +243,7 @@ function SpotCard({
                   cursor: isDeleting ? 'not-allowed' : 'pointer',
                 }}
               >
-                {spot.likedByCurrentUser ? 'Unlike' : 'Like'}
+                {spot.likedByCurrentUser ? 'Noņemt patīk' : 'Patīk'}
               </button>
             ) : null}
 
@@ -256,10 +256,10 @@ function SpotCard({
                 style={{ padding: '8px 16px', borderRadius: radii.md, opacity: isDeleting ? 0.6 : 1 }}
               >
                 {isDeleting
-                  ? 'Deleting…'
+                  ? 'Dzēšam…'
                   : isAdminManagingOther
-                  ? 'Delete (admin)'
-                  : 'Delete'}
+                  ? 'Dzēst (admin)'
+                  : 'Dzēst'}
               </button>
             ) : null}
           </div>
@@ -393,7 +393,7 @@ export default function PublicSpotsPage() {
       } catch (err) {
         if (!isCancelled) {
           console.error('Failed to load public spots', err);
-          setError('Failed to load public spots. Please try again later.');
+          setError('Neizdevās ielādēt publiskos spotus. Lūdzu, pamēģini vēlreiz.');
         }
       } finally {
         if (!isCancelled) {
@@ -482,7 +482,7 @@ export default function PublicSpotsPage() {
       return;
     }
 
-    const confirmed = window.confirm(`Delete "${spot.name}"? This cannot be undone.`);
+      const confirmed = window.confirm(`Vai tiešām dzēst "${spot.name}"? Šo darbību nevarēs atsaukt.`);
 
     if (!confirmed) {
       return;
@@ -497,7 +497,7 @@ export default function PublicSpotsPage() {
       await apiFetch(`/spots/${spot.id}`, { method: 'DELETE' });
     } catch (err) {
       console.error('Failed to delete spot', err);
-      setError('Failed to delete spot. Please try again later.');
+      setError('Neizdevās dzēst spotu. Lūdzu, mēģini vēlreiz.');
       setSpots(previousSpots);
     } finally {
       setDeletingSpotId(null);
@@ -611,7 +611,7 @@ export default function PublicSpotsPage() {
               fontWeight: 700,
             }}
           >
-            Discover
+            Atklāj
           </p>
           <h1
             style={{
@@ -621,12 +621,11 @@ export default function PublicSpotsPage() {
               letterSpacing: '-0.02em',
             }}
           >
-            Public Spots Shared by the Community
+            Publiskie spoti no Spotz kopienas
           </h1>
           <p style={{ margin: 0, color: palette.textSecondary, maxWidth: '720px', lineHeight: 1.7 }}>
-            Browse a curated collection of scenic places shared by adventurers around
-            the world. Use the search and sorting options to quickly find the perfect
-            spot for your next outing.
+            Iedvesmojies no vietām, kuras kopiena ir publicējusi visiem redzēšanai. Izmanto meklēšanu un kārtošanu, lai
+            ātri atrastu nākamo galamērķi savam piedzīvojumam.
           </p>
         </header>
 
@@ -645,26 +644,26 @@ export default function PublicSpotsPage() {
           }}
         >
           <label style={{ flex: '1 1 320px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <span style={{ fontSize: '14px', color: palette.textSecondary, fontWeight: 600 }}>Search</span>
+            <span style={{ fontSize: '14px', color: palette.textSecondary, fontWeight: 600 }}>Meklēt</span>
             <input
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by spot name..."
+              placeholder="Meklēt pēc spota nosaukuma…"
               className="spotz-input"
             />
           </label>
 
           <label style={{ width: '200px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <span style={{ fontSize: '14px', color: palette.textSecondary, fontWeight: 600 }}>Sort by</span>
+            <span style={{ fontSize: '14px', color: palette.textSecondary, fontWeight: 600 }}>Kārtot pēc</span>
             <select
               value={sort}
               onChange={(event) => setSort(event.target.value as SortOption)}
               className="spotz-input"
               style={{ cursor: 'pointer' }}
             >
-              <option value="latest">Latest</option>
-              <option value="mostLiked">Most liked</option>
+              <option value="latest">Jaunākie</option>
+              <option value="mostLiked">Visvairāk patīk</option>
             </select>
           </label>
         </div>
@@ -693,7 +692,7 @@ export default function PublicSpotsPage() {
               fontSize: '18px',
             }}
           >
-            Loading public spots...
+            Ielādējam publiskos spotus…
           </div>
         ) : error ? (
           <div
@@ -719,7 +718,7 @@ export default function PublicSpotsPage() {
               fontSize: '18px',
             }}
           >
-            No public spots found. Try adjusting your filters.
+            Publiskie spoti netika atrasti. Pamēģini mainīt meklēšanas nosacījumus.
           </div>
         ) : (
           <div
