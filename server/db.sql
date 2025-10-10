@@ -41,6 +41,18 @@ CREATE TABLE IF NOT EXISTS spot_likes (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS spot_visits (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  spot_id INT NOT NULL,
+  user_id INT NOT NULL,
+  visited_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_spot_visit (spot_id, user_id),
+  INDEX idx_spot_visits_user_date (user_id, visited_at),
+  FOREIGN KEY (spot_id) REFERENCES spots(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS spot_collections (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,

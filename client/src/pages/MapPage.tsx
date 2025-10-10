@@ -47,11 +47,13 @@ type Spot = {
   status: 'public' | 'private';
   likesCount: number;
   likedByCurrentUser?: boolean;
+  visitedByCurrentUser?: boolean;
+  visitedAt?: string | null;
   owner: {
     id: number;
     username: string;
     profile_image: string | null;
-  }; 
+  };
   tags: string[];
 };
 
@@ -113,6 +115,69 @@ type NotificationState = {
 type TagsResponse = {
   tags: string[];
 };
+
+type VisitResponse = {
+  success: boolean;
+  visited: boolean;
+  visitedAt: string | null;
+  alreadyVisited?: boolean;
+};
+
+type RemoveVisitResponse = {
+  success: boolean;
+  visited: boolean;
+  alreadyVisited?: boolean;
+};
+
+type StreakResponse = {
+  success: boolean;
+  currentStreak: number;
+  longestStreak: number;
+  todayVisited: boolean;
+  lastVisitedAt: string | null;
+  nextMilestone: number;
+  totalUniqueDays: number;
+};
+
+type StreakInfo = {
+  currentStreak: number;
+  longestStreak: number;
+  todayVisited: boolean;
+  lastVisitedAt: string | null;
+  nextMilestone: number;
+  totalUniqueDays: number;
+};
+
+const formatVisitedDate = (value: string | null | undefined): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toLocaleDateString('lv-LV', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+const mapStreakResponse = (response: StreakResponse): StreakInfo => ({
+  currentStreak: Math.max(0, Number(response.currentStreak ?? 0)),
+  longestStreak: Math.max(0, Number(response.longestStreak ?? 0)),
+  todayVisited: Boolean(response.todayVisited),
+  lastVisitedAt: response.lastVisitedAt ?? null,
+  nextMilestone: Math.max(
+    1,
+    Number(
+      response.nextMilestone ?? Number(response.currentStreak ?? 0) + 1
+    )
+  ),
+  totalUniqueDays: Math.max(0, Number(response.totalUniqueDays ?? 0)),
+});
 
 const mergeOwnerLists = (current: OwnerOption[], incoming: OwnerOption[]): OwnerOption[] => {
   // Apvieno īpašnieku sarakstus, lai dropdown vienmēr saturētu jaunākos vārdus.
@@ -566,6 +631,10 @@ export default function MapPage() {
   const [nearbySpots, setNearbySpots] = useState<NearbySpot[]>([]);
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [nearbyError, setNearbyError] = useState('');
+  const [discoveryMode, setDiscoveryMode] = useState(false);
+  const [visitedMutationId, setVisitedMutationId] = useState<number | null>(null);
+  const [streakInfo, setStreakInfo] = useState<StreakInfo | null>(null);
+  const [streakError, setStreakError] = useState('');
   const [spotIdFromQuery, setSpotIdFromQuery] = useState<number | null>(null);
 
   const ownerIdForQuery = useMemo(() => {
@@ -647,7 +716,7 @@ export default function MapPage() {
   }, []);
 
   const fetchNearbySpots = useCallback(async () => {
-    if (!userLocation) {
+    if (!userLocation || !discoveryMode) {
       return;
     }
 
@@ -655,31 +724,47 @@ export default function MapPage() {
     setNearbyError('');
 
     try {
-      const response = await apiFetch<NearbySpotsResponse>(
-        `/spots/nearby?lat=${userLocation.lat}&lng=${userLocation.lng}&limit=10`
-      );
+      const params = new URLSearchParams({
+        lat: String(userLocation.lat),
+        lng: String(userLocation.lng),
+        limit: '10',
+      });
+
+      if (discoveryMode) {
+        params.set('discover', '1');
+      }
+
+      const response = await apiFetch<NearbySpotsResponse>(`/spots/nearby?${params.toString()}`);
 
       const normalized: NearbySpot[] = (response.spots ?? []).map((spot) => {
         const distanceValue = Number(spot.distance ?? 0);
         return {
           ...spot,
+          visitedByCurrentUser: Boolean(spot.visitedByCurrentUser),
+          visitedAt: spot.visitedAt ?? null,
           distance: Number.isFinite(distanceValue) ? distanceValue : 0,
         };
       });
 
       setNearbySpots(normalized);
     } catch (error) {
-      console.error('Failed to load nearby spots', error);
-      const message =
+      console.error('Failed to load discovery spots', error);
+      let message =
         error instanceof Error && error.message
           ? error.message
-          : 'Neizdevās ielādēt tuvākos spotus. Lūdzu, mēģini vēlreiz.';
+          : 'Neizdevās ielādēt atklāšanas režīma spotus. Lūdzu, mēģini vēlreiz.';
+      const status = (error as { status?: number }).status;
+      if (status === 401) {
+        message = 'Atklāšanas režīms pieejams tikai pieteiktajiem lietotājiem.';
+        setDiscoveryMode(false);
+        setNotification({ type: 'error', message });
+      }
       setNearbyError(message);
       setNearbySpots([]);
     } finally {
       setNearbyLoading(false);
     }
-  }, [userLocation]);
+  }, [userLocation, discoveryMode]);
 
   useEffect(() => {
     // Nolasām URL parametrus, lai iespējotu dalīšanos ar konkrētu kartes skatu vai spotu.
@@ -743,6 +828,41 @@ export default function MapPage() {
 
   useEffect(() => {
     if (!currentUser) {
+      setStreakInfo(null);
+      setStreakError('');
+      return;
+    }
+
+    let ignore = false;
+
+    const loadStreak = async () => {
+      try {
+        const response = await apiFetch<StreakResponse>('/spots/visits/streak');
+        if (!ignore) {
+          setStreakInfo(mapStreakResponse(response));
+          setStreakError('');
+        }
+      } catch (error) {
+        if (!ignore) {
+          const message =
+            error instanceof Error && error.message
+              ? error.message
+              : 'Neizdevās ielādēt sērijas datus.';
+          setStreakInfo(null);
+          setStreakError(message);
+        }
+      }
+    };
+
+    void loadStreak();
+
+    return () => {
+      ignore = true;
+    };
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) {
       setStatusFilter((previous) => (previous === 'mine' || previous === 'private' ? 'all' : previous));
       setOwnerFilter((previous) => (previous === 'me' ? 'any' : previous));
       return;
@@ -757,12 +877,41 @@ export default function MapPage() {
   }, [currentUser]);
 
   useEffect(() => {
-    if (!userLocation) {
+    if (!currentUser) {
+      setDiscoveryMode(false);
+      setNearbySpots([]);
+      setNearbyError('');
+    }
+  }, [currentUser]);
+
+  const refreshStreak = useCallback(async () => {
+    if (!currentUser) {
+      setStreakInfo(null);
+      setStreakError('');
+      return;
+    }
+
+    try {
+      const response = await apiFetch<StreakResponse>('/spots/visits/streak');
+      setStreakInfo(mapStreakResponse(response));
+      setStreakError('');
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Neizdevās ielādēt sērijas datus.';
+      setStreakInfo(null);
+      setStreakError(message);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!userLocation || !discoveryMode) {
       return;
     }
 
     void fetchNearbySpots();
-  }, [userLocation, fetchNearbySpots]);
+  }, [userLocation, discoveryMode, fetchNearbySpots]);
 
   useEffect(() => {
     let ignore = false;
@@ -799,7 +948,11 @@ export default function MapPage() {
       try {
         const response = await apiFetch<SpotsResponse>(spotsEndpoint);
         if (!ignore) {
-          const nextSpots = response.spots ?? [];
+          const nextSpots = (response.spots ?? []).map((spot) => ({
+            ...spot,
+            visitedByCurrentUser: Boolean(spot.visitedByCurrentUser),
+            visitedAt: spot.visitedAt ?? null,
+          }));
           setSpots(nextSpots);
 
           if (nextSpots.length) {
@@ -961,8 +1114,14 @@ export default function MapPage() {
         body,
       });
 
-      setSpots((current) => [...current, response.spot]);
-      setAvailableTags((current) => mergeTagLists(current, response.spot.tags ?? []));
+      const createdSpot = {
+        ...response.spot,
+        visitedByCurrentUser: Boolean(response.spot.visitedByCurrentUser),
+        visitedAt: response.spot.visitedAt ?? null,
+      };
+
+      setSpots((current) => [...current, createdSpot]);
+      setAvailableTags((current) => mergeTagLists(current, createdSpot.tags ?? []));
       handleCloseForm();
       setNotification({ type: 'success', message: 'Spots veiksmīgi pievienots.' });
     } catch (error) {
@@ -1017,10 +1176,16 @@ export default function MapPage() {
         body: updates,
       });
 
+      const updatedSpot = {
+        ...response.spot,
+        visitedByCurrentUser: Boolean(response.spot.visitedByCurrentUser),
+        visitedAt: response.spot.visitedAt ?? null,
+      };
+
       setSpots((current) =>
-        current.map((spot) => (spot.id === target.id ? response.spot : spot))
+        current.map((spot) => (spot.id === target.id ? updatedSpot : spot))
       );
-      setAvailableTags((current) => mergeTagLists(current, response.spot.tags ?? []));
+      setAvailableTags((current) => mergeTagLists(current, updatedSpot.tags ?? []));
       handleCloseForm();
       setNotification({ type: 'success', message: 'Spots atjaunināts.' });
     } catch (error) {
@@ -1039,11 +1204,93 @@ export default function MapPage() {
     try {
       await apiFetch(`/spots/${spot.id}`, { method: 'DELETE' });
       setSpots((current) => current.filter((item) => item.id !== spot.id));
+      setNearbySpots((current) => current.filter((item) => item.id !== spot.id));
       setSelectedSpotId(null);
       setNotification({ type: 'success', message: 'Spots izdzēsts.' });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Neizdevās dzēst spotu.';
       setNotification({ type: 'error', message });
+    }
+  };
+
+  const handleNavigateToSpot = (spot: Spot) => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const params = new URLSearchParams({
+      api: '1',
+      destination: `${spot.lat},${spot.lng}`,
+      travelmode: 'walking',
+    });
+
+    if (userLocation) {
+      params.set('origin', `${userLocation.lat},${userLocation.lng}`);
+    }
+
+    const url = `https://www.google.com/maps/dir/?${params.toString()}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleToggleVisited = async (spot: Spot) => {
+    if (!currentUser) {
+      setNotification({
+        type: 'error',
+        message: 'Lai atzīmētu spotu kā apmeklētu, nepieciešams pieteikties.',
+      });
+      return;
+    }
+
+    const isVisited = Boolean(spot.visitedByCurrentUser);
+    setVisitedMutationId(spot.id);
+
+    try {
+      if (isVisited) {
+        await apiFetch<RemoveVisitResponse>(`/spots/${spot.id}/visit`, { method: 'DELETE' });
+
+        setSpots((current) =>
+          current.map((item) =>
+            item.id === spot.id
+              ? { ...item, visitedByCurrentUser: false, visitedAt: null }
+              : item
+          )
+        );
+
+        if (discoveryMode) {
+          void fetchNearbySpots();
+        }
+
+        setNotification({ type: 'success', message: 'Apmeklējums noņemts.' });
+      } else {
+        const response = await apiFetch<VisitResponse>(`/spots/${spot.id}/visit`, {
+          method: 'POST',
+        });
+
+        setSpots((current) =>
+          current.map((item) =>
+            item.id === spot.id
+              ? {
+                  ...item,
+                  visitedByCurrentUser: true,
+                  visitedAt: response.visitedAt ?? null,
+                }
+              : item
+          )
+        );
+
+        setNearbySpots((current) => current.filter((item) => item.id !== spot.id));
+        setNotification({ type: 'success', message: 'Spots atzīmēts kā apmeklēts!' });
+      }
+
+      await refreshStreak();
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Neizdevās atjaunināt apmeklējumu.';
+      setNotification({ type: 'error', message });
+    } finally {
+      setVisitedMutationId(null);
     }
   };
 
@@ -1154,6 +1401,9 @@ export default function MapPage() {
         : []
     ).filter((image) => typeof image === 'string' && image.trim().length > 0);
     const liked = Boolean(selectedSpot.likedByCurrentUser);
+    const visited = Boolean(selectedSpot.visitedByCurrentUser);
+    const visitedAtLabel = visited ? formatVisitedDate(selectedSpot.visitedAt ?? null) : null;
+    const visitedButtonBusy = visitedMutationId === selectedSpot.id;
 
     return (
       <InfoWindow
@@ -1262,6 +1512,44 @@ export default function MapPage() {
               ))}
             </div>
           ) : null}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => handleNavigateToSpot(selectedSpot)}
+                className="spotz-btn spotz-btn--outline"
+                style={{ padding: '8px 14px', borderRadius: radii.md }}
+              >
+                Ceļot uz šo vietu
+              </button>
+              {currentUser ? (
+                <button
+                  type="button"
+                  onClick={() => handleToggleVisited(selectedSpot)}
+                  className="spotz-btn"
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: radii.md,
+                    border: visited
+                      ? `1px solid ${palette.success}`
+                      : `1px solid ${palette.border}`,
+                    background: visited ? palette.successSoft : palette.surfaceAlt,
+                    color: visited ? palette.success : palette.textPrimary,
+                  }}
+                  disabled={visitedButtonBusy}
+                  aria-busy={visitedButtonBusy}
+                >
+                  {visited ? 'Noņemt apmeklējumu' : 'Atzīmēt kā apmeklētu'}
+                </button>
+              ) : null}
+            </div>
+            {visited && visitedAtLabel ? (
+              <span style={{ fontSize: '12px', color: palette.textMuted }}>
+                Apmeklēts {visitedAtLabel}
+              </span>
+            ) : null}
+          </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
@@ -1396,22 +1684,45 @@ export default function MapPage() {
   const canSeePrivate = Boolean(currentUser);
   const ownerFilterValue =
     ownerFilter === 'any' || ownerFilter === 'me' ? ownerFilter : String(ownerFilter);
-  const showNearbyButtonLabel = isRequestingLocation
+  const discoveryButtonLabel = discoveryMode
+    ? nearbyLoading
+      ? 'Atjaunojam atklāšanas režīmu…'
+      : 'Iziet no atklāšanas režīma'
+    : isRequestingLocation
     ? 'Nosakām atrašanās vietu…'
     : nearbyLoading
-    ? 'Ielādējam tuvākos…'
-    : 'Rādīt tuvākos 10 spotus';
+    ? 'Ieslēdzam atklāšanas režīmu…'
+    : 'Atklāšanas režīms';
+  const discoveryButtonDisabled = !discoveryMode && (isRequestingLocation || nearbyLoading);
   const shouldShowNearbyPanel =
-    Boolean(userLocation) || nearbyLoading || Boolean(locationError) || nearbySpots.length > 0;
+    discoveryMode &&
+    (Boolean(userLocation) || nearbyLoading || Boolean(locationError) || nearbySpots.length > 0);
 
-  const handleShowNearbyClick = () => {
-    if (!userLocation) {
-      requestUserLocation();
+  const handleDiscoveryToggle = () => {
+    if (discoveryMode) {
+      setDiscoveryMode(false);
+      setNearbyLoading(false);
+      setNearbySpots([]);
+      setNearbyError('');
       return;
     }
 
-    setCenter(userLocation);
-    void fetchNearbySpots();
+    if (!currentUser) {
+      setNotification({
+        type: 'error',
+        message: 'Atklāšanas režīms pieejams tikai pēc pieteikšanās.',
+      });
+      return;
+    }
+
+    setDiscoveryMode(true);
+    setNearbyError('');
+
+    if (userLocation) {
+      setCenter(userLocation);
+    } else {
+      requestUserLocation();
+    }
   };
 
   // UI tiek veidots no vairākiem slāņiem: kartes pārklājumiem un vadības paneļiem.
@@ -1468,11 +1779,82 @@ export default function MapPage() {
           </div>
         ) : null}
 
+        {currentUser ? (
+          <div
+            className="spotz-card"
+            style={{
+              padding: '14px 16px',
+              borderRadius: radii.lg,
+              border: `1px solid ${palette.border}`,
+              background: palette.surfaceGlass,
+              boxShadow: shadows.soft,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              maxWidth: '280px',
+              pointerEvents: 'auto',
+            }}
+          >
+            <span style={{ fontWeight: 700, color: palette.accent }}>
+              🔥{' '}
+              {streakInfo
+                ? `${streakInfo.currentStreak} dienu sērija`
+                : streakError
+                ? 'Sēriju neizdevās ielādēt'
+                : 'Ielādējam sēriju…'}
+            </span>
+            <span style={{ fontSize: '12px', color: palette.textSecondary }}>
+              {streakInfo
+                ? streakInfo.todayVisited
+                  ? 'Šodien esi jau apmeklējis jaunu spotu!'
+                  : 'Apmeklē jaunu spotu, lai noturētu sēriju.'
+                : streakError
+                ? streakError
+                : 'Sekojam līdzi taviem piedzīvojumiem.'}
+            </span>
+            {streakInfo ? (
+              <div
+                style={{
+                  fontSize: '11px',
+                  color: palette.textMuted,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                }}
+              >
+                <span>Rekords: {streakInfo.longestStreak} dienas</span>
+                <span>Nākamais mērķis: {streakInfo.nextMilestone} dienas</span>
+                {streakInfo.lastVisitedAt ? (
+                  <span>
+                    Pēdējais jauns spots:{' '}
+                    {formatVisitedDate(streakInfo.lastVisitedAt) ?? 'nesen'}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                void refreshStreak();
+              }}
+              className="spotz-btn spotz-btn--ghost"
+              style={{
+                alignSelf: 'flex-end',
+                padding: '4px 10px',
+                borderRadius: radii.pill,
+                fontSize: '11px',
+              }}
+            >
+              Atjaunot sēriju
+            </button>
+          </div>
+        ) : null}
+
         <button
           type="button"
-          onClick={handleShowNearbyClick}
+          onClick={handleDiscoveryToggle}
           className="spotz-btn spotz-btn--primary"
-          disabled={isRequestingLocation || nearbyLoading}
+          disabled={discoveryButtonDisabled}
           style={{
             padding: '10px 16px',
             borderRadius: radii.pill,
@@ -1482,10 +1864,10 @@ export default function MapPage() {
           }}
           aria-busy={isRequestingLocation || nearbyLoading}
         >
-          {showNearbyButtonLabel}
+          {discoveryButtonLabel}
         </button>
 
-        {locationError ? (
+        {discoveryMode && locationError ? (
           <div
             style={{
               padding: '10px 16px',
@@ -1727,16 +2109,21 @@ export default function MapPage() {
               gap: '12px',
             }}
           >
-            <h3 style={{ margin: 0, fontSize: '16px', color: palette.textPrimary }}>
-              Tavi tuvākie spoti
-            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', color: palette.textPrimary }}>
+                Atklāšanas režīms
+              </h3>
+              <span style={{ fontSize: '12px', color: palette.textSecondary }}>
+                Neapmeklētie spoti tuvumā
+              </span>
+            </div>
 
             {locationError ? (
               <p style={{ margin: 0, color: palette.danger, fontWeight: 600 }}>
                 {locationError}
               </p>
             ) : nearbyLoading ? (
-              <p style={{ margin: 0, color: palette.accent }}>Ielādējam tuvākos spotus…</p>
+              <p style={{ margin: 0, color: palette.accent }}>Ielādējam neapmeklētos spotus…</p>
             ) : nearbySpots.length ? (
               <ul
                 style={{
@@ -1785,7 +2172,7 @@ export default function MapPage() {
               </ul>
             ) : (
               <p style={{ margin: 0, color: palette.textMuted }}>
-                Nav atrasti tuvumā esoši spoti.
+                Visi tuvumā esošie spoti jau ir apmeklēti! 🎉
               </p>
             )}
 
