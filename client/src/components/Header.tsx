@@ -13,6 +13,7 @@ type AuthUser = {
 type Theme = 'light' | 'dark';
 
 function getInitialTheme(): Theme {
+  // Nolasa saglabāto tēmu vai noklusē pēc sistēmas iestatījumiem.
   if (typeof window === 'undefined') {
     return 'light';
   }
@@ -27,6 +28,7 @@ export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState<AuthUser | null>(() => {
+    // Inicializējam lietotāja stāvokli no localStorage, lai saglabātu sesiju pēc pārlādes.
     if (typeof window === 'undefined') {
       return null;
     }
@@ -45,6 +47,7 @@ export default function Header() {
   const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
 
   useEffect(() => {
+    // Kad mainām tēmu, pieliekam to <html> elementam un saglabājam nākamajai sesijai.
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('data-theme', theme);
     }
@@ -58,6 +61,7 @@ export default function Header() {
       return undefined;
     }
 
+    // Klausāmies izmaiņas citās cilnēs, lai sinhronizētu lietotāja informāciju.
     const handleStorage = (event: StorageEvent) => {
       if (event.key === 'user') {
         if (event.newValue) {
@@ -84,6 +88,7 @@ export default function Header() {
   }, []);
 
   useEffect(() => {
+    // Kad mainām maršrutu, aizveram profila popup, lai tas nepaliktu vaļā.
     setIsPopupOpen(false);
   }, [location.pathname]);
 
@@ -98,6 +103,7 @@ export default function Header() {
   );
 
   const handleLogout = () => {
+    // Vienkārši iztīrām localStorage un pāradresējam uz login lapu.
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('token');
       window.localStorage.removeItem('user');
@@ -108,6 +114,7 @@ export default function Header() {
   };
 
   const handleUserUpdated = (updatedUser: AuthUser) => {
+    // Atjauninām vietējo stāvokli un saglabājam jaunāko lietotāja info.
     setUser(updatedUser);
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('user', JSON.stringify(updatedUser));
@@ -115,6 +122,7 @@ export default function Header() {
   };
 
   const toggleTheme = () => {
+    // Pārslēdzam tumšo/gaišo režīmu ar vienu pogu.
     setTheme((current) => (current === 'light' ? 'dark' : 'light'));
   };
 

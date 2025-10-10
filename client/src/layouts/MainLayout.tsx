@@ -3,6 +3,7 @@ import Header from '../components/Header';
 import { palette } from '../styles/theme';
 
 export default function MainLayout() {
+  // Kopējais izkārtojums ar galveni un vietu bērnu lapām.
   return (
     <div
       style={{

@@ -67,6 +67,7 @@ function SpotComments({
   useEffect(() => {
     let active = true;
 
+    // Ielādējam komentārus katru reizi, kad mainās spota ID.
     async function loadComments() {
       setLoading(true);
       setError('');
@@ -103,6 +104,7 @@ function SpotComments({
   }, [spotId]);
 
   useEffect(() => {
+    // Statusa paziņojumus rādam tikai dažas sekundes.
     if (!statusMessage) {
       return;
     }
@@ -121,6 +123,7 @@ function SpotComments({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    // Neļaujam iesniegt tukšu formu vai klikšķināt pogu vairākas reizes.
     if (!canComment || submitting) {
       return;
     }
@@ -154,6 +157,7 @@ function SpotComments({
   };
 
   const handleDelete = async (comment: SpotComment) => {
+    // Administratori var dzēst komentārus – te apstrādājam pieprasījumu.
     if (!isAdmin) {
       return;
     }
@@ -176,6 +180,7 @@ function SpotComments({
   };
 
   const handleReport = async (comment: SpotComment) => {
+    // Ziņošana pieejama tikai pieslēgtajiem lietotājiem un ne uz saviem komentāriem.
     if (!currentUser) {
       setError('Lai ziņotu par komentāru, lūdzu, piesakies.');
       return;
