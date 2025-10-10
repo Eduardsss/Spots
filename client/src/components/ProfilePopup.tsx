@@ -31,6 +31,7 @@ export default function ProfilePopup({ user, onClose, onUserUpdated, onLogout }:
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
+    // Aizveram logu, ja lietotājs noklikšķina ārpus popup vai nospiež Escape.
     function handleClickOutside(event: MouseEvent) {
       if (!containerRef.current) {
         return;
@@ -55,12 +56,14 @@ export default function ProfilePopup({ user, onClose, onUserUpdated, onLogout }:
   }, [onClose]);
 
   useEffect(() => {
+    // Kad saņemam jaunu lietotāja objektu, sinhronizējam formu ar jaunākajām vērtībām.
     setUsername(user.username);
     setPreviewImage(user.profile_image ?? null);
     setSelectedImageData(null);
   }, [user]);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    // Nolasām izvēlēto attēlu un saglabājam kā base64 priekšskatījumam/API.
     const file = event.currentTarget.files?.[0];
     if (!file) {
       return;
@@ -81,6 +84,7 @@ export default function ProfilePopup({ user, onClose, onUserUpdated, onLogout }:
     setError(null);
     setSuccess(false);
 
+    // Atļaujam nosūtīt tikai izmainītos laukus, lai API nebūtu lieki dati.
     const trimmedUsername = username.trim();
     const payload: Record<string, unknown> = {};
     if (trimmedUsername && trimmedUsername !== user.username) {
@@ -101,6 +105,7 @@ export default function ProfilePopup({ user, onClose, onUserUpdated, onLogout }:
         method: 'PUT',
         body: payload,
       });
+      // Ja saglabāšana izdevās, informējam vecāku komponentu par jaunajām vērtībām.
       onUserUpdated(response.user);
       setSuccess(true);
       setSelectedImageData(null);

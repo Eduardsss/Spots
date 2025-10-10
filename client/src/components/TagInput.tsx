@@ -24,6 +24,7 @@ export function TagInput({
   const [draft, setDraft] = useState('');
 
   const availableSuggestions = useMemo(() => {
+    // Filtrējam ieteikumus, lai nerādītu jau pievienotos tagus.
     if (!suggestions.length) {
       return [];
     }
@@ -37,12 +38,14 @@ export function TagInput({
   const normalizedValue = useMemo(() => value.map((tag) => normalizeTagName(tag) ?? tag), [value]);
 
   const emit = (next: string[]) => {
+    // Atjauninājumu izsūtām tikai tad, ja saraksts patiešām mainījies.
     if (!areTagListsEqual(next, normalizedValue)) {
       onChange(next);
     }
   };
 
   const handleAddTag = (raw: string) => {
+    // Normalizējam ievadi un nepieļaujam dublikātus vai tukšas vērtības.
     if (disabled) {
       return;
     }
@@ -65,6 +68,7 @@ export function TagInput({
   };
 
   const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (event) => {
+    // Enter/komats/TAB pievieno tagu, Backspace dzēš pēdējo.
     if (disabled) {
       return;
     }
@@ -78,12 +82,14 @@ export function TagInput({
   };
 
   const handleBlur: React.FocusEventHandler<HTMLInputElement> = () => {
+    // Aizejot no lauka, automātiski pievienojam pēdējo ievadīto tagu.
     if (draft.trim()) {
       handleAddTag(draft);
     }
   };
 
   const handleRemove = (tag: string) => {
+    // Noņemam izvēlēto tagu no saraksta.
     emit(value.filter((item) => item !== tag));
   };
 

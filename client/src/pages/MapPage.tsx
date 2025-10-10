@@ -115,6 +115,7 @@ type TagsResponse = {
 };
 
 const mergeOwnerLists = (current: OwnerOption[], incoming: OwnerOption[]): OwnerOption[] => {
+  // Apvieno īpašnieku sarakstus, lai dropdown vienmēr saturētu jaunākos vārdus.
   if (!incoming.length) {
     return current;
   }
@@ -231,6 +232,7 @@ function SpotFormModal({
       return;
     }
 
+    // Kad modālais tiek palaists, pārkopējam sākotnējās vērtības formā.
     setName(initialValues.name);
     setDescription(initialValues.description);
     setStatus(initialValues.status);
@@ -242,6 +244,7 @@ function SpotFormModal({
   }, [initialValues, open]);
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    // Pārveidojam augšupielādētos attēlus base64, lai tos varētu rādīt un sūtīt uz API.
     const files = Array.from(event.target.files ?? []);
 
     if (!files.length) {
@@ -261,6 +264,7 @@ function SpotFormModal({
   };
 
   const handleRemoveImage = (index: number) => {
+    // Noņemam vienu izvēlēto attēlu no galerijas.
     setGalleryState((current) => {
       const next = current.previews.filter((_, i) => i !== index);
       return { previews: next, changed: true };
@@ -268,11 +272,13 @@ function SpotFormModal({
   };
 
   const handleClearImages = () => {
+    // Ātrs veids, kā iztīrīt visus attēlus un sākt no jauna.
     setGalleryState({ previews: [], changed: true });
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // Sagatavojam formu API pieprasījumam un nododam augstāk esošajai funkcijai.
     onSubmit({
       name: name.trim(),
       description: description,
@@ -761,6 +767,7 @@ export default function MapPage() {
   useEffect(() => {
     let ignore = false;
 
+    // Iegūstam pieejamos tagus, lai lietotājs varētu izvēlēties no populārajām birkām.
     const fetchTags = async () => {
       try {
         const response = await apiFetch<TagsResponse>('/spots/tags');
@@ -846,12 +853,14 @@ export default function MapPage() {
   const nearbySpotIds = useMemo(() => new Set<number>(nearbySpots.map((spot) => spot.id)), [nearbySpots]);
 
   const handleStatusFilterChange = (nextValue: string) => {
+    // Nodrošina, ka filtrs pieņem tikai zināmās vērtības.
     if (nextValue === 'public' || nextValue === 'private' || nextValue === 'mine' || nextValue === 'all') {
       setStatusFilter(nextValue);
     }
   };
 
   const handleOwnerFilterChange = (nextValue: string) => {
+    // Pārslēdz starp “visi”, “mani” vai konkrēta lietotāja ID.
     if (nextValue === 'any' || nextValue === 'me') {
       setOwnerFilter(nextValue);
       return;
@@ -862,6 +871,7 @@ export default function MapPage() {
   };
 
   const handleTagFilterApply = () => {
+    // Saglabājam tagu filtrā tikai tad, ja ievade nav tukša.
     const normalized = normalizeTagName(tagFilterInput);
     if (normalized) {
       setTagFilter(normalized);
@@ -877,6 +887,7 @@ export default function MapPage() {
   };
 
   const handleTagFilterKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    // Enter nospiešana aktivizē filtra piemērošanu.
     if (event.key === 'Enter') {
       event.preventDefault();
       handleTagFilterApply();
@@ -884,6 +895,7 @@ export default function MapPage() {
   };
 
   const handleClearFilters = () => {
+    // Poga “Notīrīt filtrus” atgriež sākotnējos iestatījumus.
     setStatusFilter('all');
     setOwnerFilter('any');
     setTagFilter('');

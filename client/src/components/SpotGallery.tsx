@@ -8,6 +8,7 @@ type SpotGalleryProps = {
 };
 
 function sanitizeImages(images: string[]): string[] {
+  // Atsijājam tukšas vai nederīgas URL vērtības, lai nerādītu bojātus attēlus.
   return images.filter((image) => typeof image === 'string' && image.trim().length > 0);
 }
 
@@ -16,6 +17,7 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
+    // Ja saraksts mainās, vienmēr sākam rādīt pirmo attēlu.
     setActiveIndex(0);
   }, [normalized.length, normalized[0]]);
 

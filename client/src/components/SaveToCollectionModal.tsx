@@ -63,6 +63,7 @@ export default function SaveToCollectionModal({
 
     let ignore = false;
 
+    // Kad modālais tiek atvērts, ielādējam lietotāja kolekciju sarakstu.
     const fetchCollections = async () => {
       setLoadingCollections(true);
       setCollectionsError(null);
@@ -92,6 +93,7 @@ export default function SaveToCollectionModal({
   }, [open, spotId]);
 
   useEffect(() => {
+    // Aizverot modāli, atiestatām formas laukus un paziņojumus.
     if (!open) {
       setCollectionsError(null);
       setSuccessMessage(null);
@@ -108,6 +110,7 @@ export default function SaveToCollectionModal({
   }
 
   const handleSave = async (collectionId: number) => {
+    // Poga “Saglabāt” saglabā spotu izvēlētajā kolekcijā.
     setSavingCollectionId(collectionId);
     setSuccessMessage(null);
     try {
@@ -141,6 +144,7 @@ export default function SaveToCollectionModal({
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // Ļaujam ātri izveidot jaunu kolekciju tieši no šī loga.
     if (!newName.trim()) {
       setCreateError('Lūdzu, ievadi kolekcijas nosaukumu.');
       return;

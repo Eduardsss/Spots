@@ -12,6 +12,7 @@ import CollectionsPage from './pages/CollectionsPage';
 import { palette, radii, shadows, transitions } from './styles/theme';
 
 function Placeholder({ title, description }: { title: string; description?: string }) {
+  // Vienkāršs bloks, ko izmantojam kļūdu/404 lapās, lai parādītu draudzīgu ziņu.
   return (
     <main
       style={{
@@ -48,6 +49,7 @@ function Placeholder({ title, description }: { title: string; description?: stri
 }
 
 export default function App() {
+  // Galvenā maršrutu konfigurācija visai lietotnei.
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -58,6 +60,7 @@ export default function App() {
         <Route
           path="map"
           element={
+            // ProtectedRoute pasargā kartes lapu no viesu piekļuves.
             <ProtectedRoute>
               <MapPage />
             </ProtectedRoute>
@@ -66,6 +69,7 @@ export default function App() {
         <Route
           path="myspots"
           element={
+            // Līdzīgi – lietotāja privātie spoti ir redzami tikai pēc pieteikšanās.
             <ProtectedRoute>
               <MySpotsPage />
             </ProtectedRoute>
@@ -74,6 +78,7 @@ export default function App() {
         <Route
           path="collections"
           element={
+            // Kolekcijas ir personalizētas, tāpēc arī prasa autentifikāciju.
             <ProtectedRoute>
               <CollectionsPage />
             </ProtectedRoute>
@@ -82,6 +87,7 @@ export default function App() {
         <Route
           path="admin/reports"
           element={
+            // Admin sadaļā papildus pārbaudām vai lietotājam ir administratora loma.
             <ProtectedRoute requireAdmin>
               <AdminReportsPage />
             </ProtectedRoute>
