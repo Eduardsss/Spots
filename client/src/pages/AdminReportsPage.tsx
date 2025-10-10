@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { palette, radii, shadows, transitions } from '../styles/theme';
 
+// Administrācijas panelis moderācijas komandai ar statistiku, ziņojumiem un komentāru rindu.
 type AdminStats = {
   totalUsers: number;
   totalSpots: number;
@@ -95,6 +96,7 @@ const sectionCardStyle = {
 } as const;
 
 export default function AdminReportsPage() {
+  // Saglabājam dažādus datu blokus: statistiku, ziņojumus un komentāru rindu.
   const [overview, setOverview] = useState<AdminOverviewResponse | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [overviewError, setOverviewError] = useState('');
@@ -136,6 +138,7 @@ export default function AdminReportsPage() {
   );
 
   const loadOverview = useCallback(async () => {
+    // Administrācijas kopsavilkums ar skaitļiem par lietotni.
     setOverviewLoading(true);
     setOverviewError('');
 
@@ -151,6 +154,7 @@ export default function AdminReportsPage() {
   }, []);
 
   const loadReports = useCallback(async () => {
+    // Saņemam moderatoriem gaidošos ziņojumus par spotiem un komentāriem.
     setReportsLoading(true);
     setReportsError('');
 
@@ -166,6 +170,7 @@ export default function AdminReportsPage() {
   }, []);
 
   const loadModerationQueue = useCallback(async () => {
+    // Ielādējam komentārus, kuriem nepieciešama pārskatīšana.
     setModerationLoading(true);
     setModerationError('');
 
@@ -202,6 +207,7 @@ export default function AdminReportsPage() {
   const stats = overview?.stats;
 
   const handleReportAction = async (report: ReportItem, nextStatus: 'resolved' | 'dismissed') => {
+    // Moderators var atzīmēt ziņojumu kā atrisinātu vai noraidītu.
     if (processingReportId !== null) {
       return;
     }
@@ -267,6 +273,7 @@ export default function AdminReportsPage() {
   };
 
   const handleRemoveComment = async (comment: ModerationItem) => {
+    // Dzēšam problemātisku komentāru un sinhronizējam statistiku/ziņojumu sarakstu.
     if (processingCommentId !== null) {
       return;
     }
@@ -309,6 +316,7 @@ export default function AdminReportsPage() {
     }
   };
 
+  // Administrācijas skatā apvienojam vairākas sadaļas ar kartītēm un tabulām.
   return (
     <main
       style={{
@@ -533,6 +541,7 @@ export default function AdminReportsPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {reports.map((report) => (
+                // Katra karte sniedz detaļas par ziņojumu un darbības pogas moderatoriem.
                 <div
                   key={report.id}
                   className="spotz-card"
@@ -684,8 +693,9 @@ export default function AdminReportsPage() {
             <p style={{ margin: 0, color: palette.textSecondary }}>Nav ziņotu komentāru, kas gaida pārbaudi.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {moderationQueue.map((comment) => (
-                <div
+            {moderationQueue.map((comment) => (
+              // Rindas komentāri ar informāciju un iespēju tos dzēst.
+              <div
                   key={comment.id}
                   className="spotz-card"
                   style={{

@@ -27,6 +27,7 @@ import {
 } from '../lib/tags';
 import { palette, radii, shadows, transitions } from '../styles/theme';
 
+// Kartes lapā apvienojam Google Maps karti, spotu sarakstu un iespēju veidot/rediģēt savus punktus.
 type AuthUser = {
   id: number;
   username: string;
@@ -157,6 +158,7 @@ const DEFAULT_CENTER = { lat: 56.9496, lng: 24.1052 };
 
 const mapContainerStyle: CSSProperties = { width: '100%', height: '100%' };
 
+// Nolasa lietotāju no localStorage, lai zinātu kuras darbības ir atļautas.
 function parseStoredUser(): AuthUser | null {
   if (typeof window === 'undefined') {
     return null;
@@ -535,6 +537,7 @@ function SpotFormModal({
 
 export default function MapPage() {
   const location = useLocation();
+  // Galvenie stāvokļi, kas kontrolē kartes izvēlētās vietas, filtrus un formu.
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => parseStoredUser());
   const [spots, setSpots] = useState<Spot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -604,6 +607,7 @@ export default function MapPage() {
   });
 
   const requestUserLocation = useCallback(() => {
+    // Pieprasa lietotāja atrašanās vietu, lai atrastu tuvākos spotus.
     setIsRequestingLocation(true);
 
     if (typeof window === 'undefined' || !('geolocation' in navigator)) {
@@ -672,6 +676,7 @@ export default function MapPage() {
   }, [userLocation]);
 
   useEffect(() => {
+    // Nolasām URL parametrus, lai iespējotu dalīšanos ar konkrētu kartes skatu vai spotu.
     const params = new URLSearchParams(location.search);
     const latParam = parseFloat(params.get('lat') ?? '');
     const lngParam = parseFloat(params.get('lng') ?? '');
@@ -779,6 +784,7 @@ export default function MapPage() {
   useEffect(() => {
     let ignore = false;
 
+    // Sūta pieprasījumu ar aktīvajiem filtriem un atjauno kartes datus.
     const fetchSpots = async () => {
       setLoading(true);
       setFetchError('');
@@ -1380,6 +1386,7 @@ export default function MapPage() {
     void fetchNearbySpots();
   };
 
+  // UI tiek veidots no vairākiem slāņiem: kartes pārklājumiem un vadības paneļiem.
   return (
     <div style={{ height: 'calc(100vh - 160px)', minHeight: '520px', position: 'relative' }}>
       {notification ? (
@@ -1617,6 +1624,7 @@ export default function MapPage() {
 
       {isLoaded ? (
         <div style={MAP_WRAPPER_STYLE}>
+          {/* Kad Google Maps bibliotēka ir ielādēta, uzzīmējam karti un pievienojam marķierus. */}
           <GoogleMap
             mapContainerStyle={mapContainerStyle}
             center={center}

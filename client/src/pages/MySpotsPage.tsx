@@ -7,6 +7,7 @@ import { apiFetch } from '../lib/api';
 import { areTagListsEqual, mergeTagLists, MAX_TAGS_PER_SPOT } from '../lib/tags';
 import { palette, radii, shadows } from '../styles/theme';
 
+// Šī lapa ļauj lietotājam pārvaldīt savus personīgos spotus un kolekcijas.
 type Spot = {
   id: number;
   user_id: number;
@@ -53,6 +54,7 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+// Modālais logs spotu rediģēšanai ar galerijas un tagu pārvaldību.
 function EditSpotModal({
   open,
   spot,
@@ -72,6 +74,7 @@ function EditSpotModal({
   availableTags: string[];
   maxTags?: number;
 }) {
+  // Glabājam formā ievadītās vērtības, lai tās varētu iesniegt API.
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<'public' | 'private'>('public');
@@ -147,6 +150,7 @@ function EditSpotModal({
   };
 
   return (
+    // Modālis tiek parādīts virs lapas, kad lietotājs rediģē izvēlēto spotu.
     <div className="spotz-modal-overlay" role="dialog" aria-modal="true">
       <div className="spotz-modal" style={{ width: 'min(600px, 100%)' }}>
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -362,6 +366,7 @@ function EditSpotModal({
   );
 }
 
+// Atsevišķa kartīte, kas attēlo vienu no lietotāja spotiem ar darbības pogām.
 function SpotCard({
   spot,
   onShow,
@@ -382,6 +387,7 @@ function SpotCard({
       : spot.image
       ? [spot.image]
       : [];
+  // Normalizējam tagu sarakstu, lai to būtu viegli attēlot.
   const tagList = Array.isArray(spot.tags) ? spot.tags : [];
 
   return (
@@ -485,6 +491,7 @@ function SpotCard({
 
 export default function MySpotsPage() {
   const navigate = useNavigate();
+  // Stāvokļi, kas nepieciešami manu spotu saraksta, modāļu un paziņojumu pārvaldīšanai.
   const [spots, setSpots] = useState<Spot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -519,6 +526,7 @@ export default function MySpotsPage() {
   }, []);
 
   const fetchSpots = useCallback(async () => {
+    // Ielādē lietotāja privātos un publiskos spotus no API.
     setLoading(true);
     setError(null);
 
@@ -551,6 +559,7 @@ export default function MySpotsPage() {
   );
 
   const handleDeleteSpot = useCallback(
+    // Nodrošina apstiprinājumu un dzēš spotu gan no servera, gan lokālā saraksta.
     async (spot: Spot) => {
       const confirmed = window.confirm(`Vai tiešām dzēst "${spot.name}"? Šo darbību nevarēs atsaukt.`);
       if (!confirmed) {
@@ -592,6 +601,7 @@ export default function MySpotsPage() {
   }, [statusMessage]);
 
   const handleSubmitEdit = useCallback(
+    // Apstrādā modāļa formu un nosūta izmaiņas uz serveri.
     async (values: SpotFormSubmission) => {
       if (!editingSpot) {
         return;
@@ -657,6 +667,7 @@ export default function MySpotsPage() {
     []
   );
 
+  // Galvenais saturs: virsraksts, stāvokļa paziņojumi un saraksts ar lietotāja spotiem.
   return (
     <div style={{ padding: '40px clamp(16px, 4vw, 48px) 80px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
@@ -711,6 +722,7 @@ export default function MySpotsPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {spots.map((spot) => (
+            // Katrā kartītē ieliekam atsauces uz darbībām (rediģēt, dzēst, saglabāt kolekcijā).
             <SpotCard
               key={spot.id}
               spot={spot}
@@ -723,6 +735,7 @@ export default function MySpotsPage() {
         </div>
       )}
 
+      {/* Modālis, kas ļauj pievienot spotu izvēlētai kolekcijai. */}
       <SaveToCollectionModal
         open={Boolean(collectionSpot)}
         spotId={collectionSpot?.id ?? null}

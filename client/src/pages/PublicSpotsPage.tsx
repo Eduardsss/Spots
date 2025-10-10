@@ -6,6 +6,7 @@ import SaveToCollectionModal from '../components/SaveToCollectionModal';
 import { apiFetch } from '../lib/api';
 import { palette, radii, shadows } from '../styles/theme';
 
+// Publisko spotu lapā lietotāji var pārlūkot, saglabāt un dalīties ar kopienas vietām.
 type AuthUser = {
   id: number;
   username: string;
@@ -34,6 +35,7 @@ type SpotsResponse = {
 
 type SortOption = 'latest' | 'mostLiked';
 
+// Props, kas tiek nodoti katrai spot kartītei un nosaka pieejamās darbības.
 type SpotCardProps = {
   spot: Spot;
   canLike: boolean;
@@ -83,6 +85,7 @@ function SpotCard({
   highlighted = false,
   initiallyOpenComments = false,
 }: SpotCardProps) {
+  // Vietējais stāvoklis lai kontrolētu komentāru atvēršanu un citu interaktīvo loģiku.
   const [showComments, setShowComments] = useState(initiallyOpenComments);
   const canComment = Boolean(currentUser);
   const toggleLabel = showComments ? 'Slēpt komentārus' : 'Skatīt komentārus';
@@ -102,8 +105,9 @@ function SpotCard({
     }
   }, [initiallyOpenComments]);
 
-  return (
-    <article
+    // Kartīte apvieno attēlu galeriju, aprakstu un darbību pogas vienā blokā.
+    return (
+      <article
       id={`spot-card-${spot.id}`}
       className="spotz-card"
       style={{
@@ -329,6 +333,7 @@ function SpotCard({
 export default function PublicSpotsPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  // Pamatstāvokļi lapai: lietotājs, ielādes statusi, meklēšana un atlasītie spoti.
   const [user, setUser] = useState<AuthUser | null>(() => parseStoredUser());
   const [spots, setSpots] = useState<Spot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -398,6 +403,7 @@ export default function PublicSpotsPage() {
   useEffect(() => {
     let isCancelled = false;
 
+    // Ielādējam visus publiskos spotus, ņemot vērā meklēšanu un kārtošanas izvēli.
     const loadSpots = async () => {
       setLoading(true);
       setError(null);
@@ -454,6 +460,7 @@ export default function PublicSpotsPage() {
   }, [highlightedSpotId, spots]);
 
   const handleToggleLike = async (spot: Spot) => {
+    // Izmanto optimistisku atjaunināšanu, lai lietotājs uzreiz redzētu patīk izmaiņas.
     if (!user) {
       return;
     }
@@ -496,6 +503,7 @@ export default function PublicSpotsPage() {
   };
 
   const handleDeleteSpot = async (spot: Spot) => {
+    // Tikai administrators var dzēst spotu no publiskās lentes.
     if (!user || user.role !== 'admin') {
       return;
     }
@@ -612,6 +620,7 @@ export default function PublicSpotsPage() {
 
   const isAdmin = user?.role === 'admin';
 
+  // Lapa sastāv no filtru galvenes, statusa paziņojumiem un saraksta ar spot kartītēm.
   return (
     <main
       style={{
@@ -759,6 +768,7 @@ export default function PublicSpotsPage() {
             }}
           >
             {spots.map((spot) => (
+              // Katrā kartītē nododam nepieciešamās atļaujas un notikumu apstrādātājus.
               <SpotCard
                 key={spot.id}
                 spot={spot}
@@ -780,7 +790,8 @@ export default function PublicSpotsPage() {
         )}
       </section>
 
-      <SaveToCollectionModal
+        {/* Modālis, kas ļauj pievienot atlasīto spotu kolekcijai. */}
+        <SaveToCollectionModal
         open={Boolean(collectionSpot)}
         spotId={collectionSpot?.id ?? null}
         spotName={collectionSpot?.name ?? ''}

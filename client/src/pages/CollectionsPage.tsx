@@ -3,6 +3,7 @@ import { SpotGallery } from '../components/SpotGallery';
 import { apiFetch } from '../lib/api';
 import { palette, radii, shadows, transitions } from '../styles/theme';
 
+// Kolekciju lapa ļauj veidot tematiskas izlases un pārvaldīt to saturu.
 type CollectionVisibility = 'public' | 'private';
 
 type CollectionSummary = {
@@ -55,6 +56,7 @@ const VISIBILITY_LABELS: Record<CollectionVisibility, string> = {
 };
 
 export default function CollectionsPage() {
+  // Saglabājam kolekciju sarakstu, aktīvo izvēli un formu stāvokļus.
   const [collections, setCollections] = useState<CollectionSummary[]>([]);
   const [loadingCollections, setLoadingCollections] = useState(true);
   const [collectionsError, setCollectionsError] = useState<string | null>(null);
@@ -75,6 +77,7 @@ export default function CollectionsPage() {
   const [removingSpotId, setRemovingSpotId] = useState<number | null>(null);
 
   const fetchCollections = useCallback(async () => {
+    // Ielādējam visas pieejamās kolekcijas, lai lietotājs var tās pārvaldīt.
     setLoadingCollections(true);
     setCollectionsError(null);
     try {
@@ -100,6 +103,7 @@ export default function CollectionsPage() {
   }, [fetchCollections]);
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
+    // Apstrādā jaunas kolekcijas izveidi no formas datiem.
     event.preventDefault();
 
     if (!newName.trim()) {
@@ -135,6 +139,7 @@ export default function CollectionsPage() {
   };
 
   const handleVisibilityChange = async (collection: CollectionSummary, visibility: CollectionVisibility) => {
+    // Ļauj īpašniekam ātri pārslēgt kolekcijas pieejamību.
     if (collection.visibility === visibility) {
       return;
     }
@@ -163,6 +168,7 @@ export default function CollectionsPage() {
   };
 
   const handleDeleteCollection = async (collection: CollectionSummary) => {
+    // Drošības dēļ prasām apstiprinājumu pirms kolekcijas dzēšanas.
     if (!window.confirm(`Vai tiešām dzēst kolekciju "${collection.name}"?`)) {
       return;
     }
@@ -185,6 +191,7 @@ export default function CollectionsPage() {
   };
 
   const fetchCollectionSpots = useCallback(
+    // Pieprasām atlasītās kolekcijas spotus, lai tos parādītu labajā panelī.
     async (collectionId: number) => {
       setLoadingSpots(true);
       setSpotsError(null);
@@ -229,12 +236,14 @@ export default function CollectionsPage() {
   );
 
   const handleSelectCollection = (collection: CollectionSummary) => {
+    // Kad lietotājs izvēlas kolekciju, ielādējam tās detaļas un spotus.
     setActiveCollectionId(collection.id);
     setActiveCollection(collection);
     void fetchCollectionSpots(collection.id);
   };
 
   const handleRemoveSpot = async (collectionId: number, spotId: number) => {
+    // Noņem spotu no kolekcijas un atjaunina kopsavilkuma skaitītājus.
     setRemovingSpotId(spotId);
     try {
       const response = await apiFetch<CollectionResponse>(`/collections/${collectionId}/spots/${spotId}`, {
@@ -263,6 +272,7 @@ export default function CollectionsPage() {
     return `Kolekcija: ${activeCollection.name}`;
   }, [activeCollection]);
 
+  // Sadalām ekrānu starp kolekciju sarakstu kreisajā pusē un izvēlētās kolekcijas saturu labajā pusē.
   return (
     <div
       style={{
@@ -386,6 +396,7 @@ export default function CollectionsPage() {
           </div>
         ) : (
           collections.map((collection) => {
+            // Katru kolekciju attēlojam kā interaktīvu kartīti kreisajā panelī.
             const isActive = activeCollectionId === collection.id;
             return (
               <article
@@ -538,6 +549,7 @@ export default function CollectionsPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {collectionSpots.map((spot) => {
+              // Katra kolekcijas vienība tiek attēlota ar aprakstu, attēliem un darbības pogām.
               const images = Array.isArray(spot.images) && spot.images.length
                 ? spot.images
                 : spot.image
