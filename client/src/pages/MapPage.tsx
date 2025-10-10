@@ -1169,8 +1169,24 @@ export default function MapPage() {
             flexDirection: 'column',
             gap: '14px',
             borderRadius: radii.lg,
+            position: 'relative',
           }}
         >
+          <button
+            type="button"
+            onClick={() => setSelectedSpotId(null)}
+            className="spotz-btn spotz-btn--ghost"
+            style={{
+              position: 'absolute',
+              top: '10px',
+              right: '10px',
+              padding: '6px 12px',
+              borderRadius: radii.pill,
+            }}
+            aria-label="Aizvērt spotu"
+          >
+            ×
+          </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
               style={{
