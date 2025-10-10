@@ -6,6 +6,15 @@ const authMiddleware = require("../middleware/auth");
 
 const router = express.Router();
 
+const toIsoString = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const dateValue = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(dateValue.getTime()) ? null : dateValue.toISOString();
+};
+
 const mapSpotRow = (row) => ({
   id: row.id,
   user_id: row.user_id,
@@ -19,6 +28,8 @@ const mapSpotRow = (row) => ({
   created_at: row.created_at,
   likesCount: Number(row.likesCount || 0),
   likedByCurrentUser: Boolean(row.likedByCurrentUser),
+  visitedByCurrentUser: Boolean(row.visitedByCurrentUser),
+  visitedAt: toIsoString(row.visited_at),
   owner: {
     id: row.user_id,
     username: row.owner_username,
@@ -26,6 +37,93 @@ const mapSpotRow = (row) => ({
   },
   tags: Array.isArray(row.tags) ? row.tags : [],
 });
+
+const MS_IN_DAY = 86_400_000;
+
+const normalizeDay = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const dateValue = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  if (Number.isNaN(dateValue.getTime())) {
+    return null;
+  }
+
+  return new Date(dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate());
+};
+
+const differenceInDays = (a, b) => Math.round((a.getTime() - b.getTime()) / MS_IN_DAY);
+
+const calculateStreakStats = (days) => {
+  if (!Array.isArray(days) || days.length === 0) {
+    return { currentStreak: 0, longestStreak: 0, todayVisited: false };
+  }
+
+  const normalizedDays = days
+    .map((value) => normalizeDay(value))
+    .filter((value) => value instanceof Date && !Number.isNaN(value.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime());
+
+  if (normalizedDays.length === 0) {
+    return { currentStreak: 0, longestStreak: 0, todayVisited: false };
+  }
+
+  let longest = 1;
+  let currentRun = 1;
+
+  for (let index = 1; index < normalizedDays.length; index += 1) {
+    const previous = normalizedDays[index - 1];
+    const current = normalizedDays[index];
+    const diff = differenceInDays(current, previous);
+
+    if (diff === 0) {
+      continue;
+    }
+
+    if (diff === 1) {
+      currentRun += 1;
+    } else {
+      longest = Math.max(longest, currentRun);
+      currentRun = 1;
+    }
+  }
+
+  longest = Math.max(longest, currentRun);
+
+  const today = normalizeDay(new Date());
+  const lastDay = normalizedDays[normalizedDays.length - 1];
+  const diffToToday = differenceInDays(today, lastDay);
+
+  let currentStreak = 0;
+
+  if (diffToToday === 0 || diffToToday === 1) {
+    currentStreak = 1;
+    let previous = lastDay;
+
+    for (let index = normalizedDays.length - 2; index >= 0; index -= 1) {
+      const candidate = normalizedDays[index];
+      const diff = differenceInDays(previous, candidate);
+
+      if (diff === 1) {
+        currentStreak += 1;
+        previous = candidate;
+      } else if (diff === 0) {
+        continue;
+      } else {
+        break;
+      }
+    }
+  }
+
+  const todayVisited = diffToToday === 0;
+
+  return {
+    currentStreak,
+    longestStreak: Math.max(longest, currentStreak),
+    todayVisited,
+  };
+};
 
 const mapCommentRow = (row) => ({
   id: row.id,
@@ -281,13 +379,22 @@ const getTopPublicSpots = async (limit = 5, currentUserId = null) => {
     ? ", CASE WHEN ul.user_id IS NULL THEN 0 ELSE 1 END AS likedByCurrentUser"
     : ", 0 AS likedByCurrentUser";
 
+  const visitedSelect = currentUserId
+    ? ", CASE WHEN sv_current.user_id IS NULL THEN 0 ELSE 1 END AS visitedByCurrentUser, sv_current.visited_at AS visited_at"
+    : ", 0 AS visitedByCurrentUser, NULL AS visited_at";
+
   const likedJoin = currentUserId
     ? "LEFT JOIN spot_likes ul ON ul.spot_id = s.id AND ul.user_id = ?"
+    : "";
+
+  const visitedJoin = currentUserId
+    ? "LEFT JOIN spot_visits sv_current ON sv_current.spot_id = s.id AND sv_current.user_id = ?"
     : "";
 
   const queryParams = [];
 
   if (currentUserId) {
+    queryParams.push(currentUserId);
     queryParams.push(currentUserId);
   }
 
@@ -308,6 +415,7 @@ const getTopPublicSpots = async (limit = 5, currentUserId = null) => {
         u.profile_image AS owner_profile_image,
         COALESCE(l.likesCount, 0) AS likesCount
         ${likedSelect}
+        ${visitedSelect}
       FROM spots s
       JOIN users u ON s.user_id = u.id
       LEFT JOIN (
@@ -316,6 +424,7 @@ const getTopPublicSpots = async (limit = 5, currentUserId = null) => {
         GROUP BY spot_id
       ) l ON l.spot_id = s.id
       ${likedJoin}
+      ${visitedJoin}
       WHERE s.status = 'public'
       ORDER BY likesCount DESC, s.created_at DESC
       LIMIT ?`,
@@ -435,13 +544,26 @@ const buildSpotQuery = async (filters, params, sort, currentUserId) => {
     ? ", CASE WHEN ul.user_id IS NULL THEN 0 ELSE 1 END AS likedByCurrentUser"
     : ", 0 AS likedByCurrentUser";
 
+  const visitedSelect = currentUserId
+    ? ", CASE WHEN sv_current.user_id IS NULL THEN 0 ELSE 1 END AS visitedByCurrentUser, sv_current.visited_at AS visited_at"
+    : ", 0 AS visitedByCurrentUser, NULL AS visited_at";
+
   const likedJoin = currentUserId
     ? "LEFT JOIN spot_likes ul ON ul.spot_id = s.id AND ul.user_id = ?"
     : "";
 
-  const queryParams = currentUserId
-    ? [currentUserId, ...params]
-    : [...params];
+  const visitedJoin = currentUserId
+    ? "LEFT JOIN spot_visits sv_current ON sv_current.spot_id = s.id AND sv_current.user_id = ?"
+    : "";
+
+  const queryParams = [];
+
+  if (currentUserId) {
+    queryParams.push(currentUserId);
+    queryParams.push(currentUserId);
+  }
+
+  queryParams.push(...params);
 
   const [rows] = await pool.query(
     `SELECT
@@ -458,6 +580,7 @@ const buildSpotQuery = async (filters, params, sort, currentUserId) => {
         u.profile_image AS owner_profile_image,
         COALESCE(l.likesCount, 0) AS likesCount
         ${likedSelect}
+        ${visitedSelect}
       FROM spots s
       JOIN users u ON s.user_id = u.id
       LEFT JOIN (
@@ -466,6 +589,7 @@ const buildSpotQuery = async (filters, params, sort, currentUserId) => {
         GROUP BY spot_id
       ) l ON l.spot_id = s.id
       ${likedJoin}
+      ${visitedJoin}
       ${whereClause}
       ${orderClause}`,
     queryParams
@@ -482,13 +606,22 @@ const getSpotById = async (spotId, currentUserId = null) => {
     ? ", CASE WHEN ul.user_id IS NULL THEN 0 ELSE 1 END AS likedByCurrentUser"
     : ", 0 AS likedByCurrentUser";
 
+  const visitedSelect = currentUserId
+    ? ", CASE WHEN sv_current.user_id IS NULL THEN 0 ELSE 1 END AS visitedByCurrentUser, sv_current.visited_at AS visited_at"
+    : ", 0 AS visitedByCurrentUser, NULL AS visited_at";
+
   const likedJoin = currentUserId
     ? "LEFT JOIN spot_likes ul ON ul.spot_id = s.id AND ul.user_id = ?"
+    : "";
+
+  const visitedJoin = currentUserId
+    ? "LEFT JOIN spot_visits sv_current ON sv_current.spot_id = s.id AND sv_current.user_id = ?"
     : "";
 
   const queryParams = [];
 
   if (currentUserId) {
+    queryParams.push(currentUserId);
     queryParams.push(currentUserId);
   }
 
@@ -509,6 +642,7 @@ const getSpotById = async (spotId, currentUserId = null) => {
         u.profile_image AS owner_profile_image,
         COALESCE(l.likesCount, 0) AS likesCount
         ${likedSelect}
+        ${visitedSelect}
       FROM spots s
       JOIN users u ON s.user_id = u.id
       LEFT JOIN (
@@ -517,6 +651,7 @@ const getSpotById = async (spotId, currentUserId = null) => {
         GROUP BY spot_id
       ) l ON l.spot_id = s.id
       ${likedJoin}
+      ${visitedJoin}
       WHERE s.id = ?
       LIMIT 1`,
     queryParams
@@ -648,19 +783,58 @@ router.get("/nearby", optionalAuth, async (req, res) => {
 
   const currentUserId = req.user ? req.user.id : null;
 
+  const discoverParam = Array.isArray(req.query.discover)
+    ? req.query.discover[0]
+    : req.query.discover;
+  const unvisitedParam = Array.isArray(req.query.unvisited)
+    ? req.query.unvisited[0]
+    : req.query.unvisited;
+
+  const discoverMode = [discoverParam, unvisitedParam]
+    .filter((value) => typeof value === "string")
+    .some((value) => ["1", "true", "yes"].includes(value.toLowerCase()));
+
+  if (discoverMode && !currentUserId) {
+    return res.status(401).json({ message: "Discovery mode requires authentication" });
+  }
+
   const likedSelect = currentUserId
     ? ", CASE WHEN ul.user_id IS NULL THEN 0 ELSE 1 END AS likedByCurrentUser"
     : ", 0 AS likedByCurrentUser";
 
+  const visitedSelect = currentUserId
+    ? ", CASE WHEN sv_current.user_id IS NULL THEN 0 ELSE 1 END AS visitedByCurrentUser, sv_current.visited_at AS visited_at"
+    : ", 0 AS visitedByCurrentUser, NULL AS visited_at";
+
   const likedJoin = currentUserId
     ? "LEFT JOIN spot_likes ul ON ul.spot_id = s.id AND ul.user_id = ?"
+    : "";
+
+  const visitedJoin = currentUserId
+    ? "LEFT JOIN spot_visits sv_current ON sv_current.spot_id = s.id AND sv_current.user_id = ?"
     : "";
 
   const visibilityClause = currentUserId
     ? "(s.status = 'public' OR s.user_id = ?)"
     : "s.status = 'public'";
 
+  const whereConditions = [
+    visibilityClause,
+    "s.lat IS NOT NULL",
+    "s.lng IS NOT NULL",
+  ];
+
+  if (discoverMode) {
+    whereConditions.push("sv_current.spot_id IS NULL");
+  }
+
+  const whereClause = whereConditions.join("\n          AND ");
+
   const queryParams = [lat, lng, lat];
+
+  if (currentUserId) {
+    queryParams.push(currentUserId);
+  }
 
   if (currentUserId) {
     queryParams.push(currentUserId);
@@ -687,7 +861,8 @@ router.get("/nearby", optionalAuth, async (req, res) => {
           u.username AS owner_username,
           u.profile_image AS owner_profile_image,
           COALESCE(l.likesCount, 0) AS likesCount
-          ${likedSelect},
+          ${likedSelect}
+          ${visitedSelect},
           (6371 * acos(
             cos(radians(?)) *
             cos(radians(s.lat)) *
@@ -703,9 +878,8 @@ router.get("/nearby", optionalAuth, async (req, res) => {
           GROUP BY spot_id
         ) l ON l.spot_id = s.id
         ${likedJoin}
-        WHERE ${visibilityClause}
-          AND s.lat IS NOT NULL
-          AND s.lng IS NOT NULL
+        ${visitedJoin}
+        WHERE ${whereClause}
         ORDER BY distance ASC
         LIMIT ?`,
       queryParams
@@ -723,6 +897,131 @@ router.get("/nearby", optionalAuth, async (req, res) => {
   } catch (error) {
     console.error("Error fetching nearby spots", error);
     return res.status(500).json({ message: "Failed to fetch nearby spots" });
+  }
+});
+
+router.post("/:id/visit", authMiddleware, async (req, res) => {
+  const spotId = Number.parseInt(req.params.id, 10);
+
+  if (Number.isNaN(spotId)) {
+    return res.status(400).json({ message: "Valid spot id is required" });
+  }
+
+  try {
+    const [spots] = await pool.query(
+      "SELECT id, status, user_id FROM spots WHERE id = ? LIMIT 1",
+      [spotId]
+    );
+
+    if (spots.length === 0) {
+      return res.status(404).json({ message: "Spot not found" });
+    }
+
+    const spot = spots[0];
+
+    if (spot.status === "private" && spot.user_id !== req.user.id) {
+      return res.status(403).json({ message: "You cannot mark this spot as visited" });
+    }
+
+    const [existing] = await pool.query(
+      "SELECT id, visited_at FROM spot_visits WHERE spot_id = ? AND user_id = ? LIMIT 1",
+      [spotId, req.user.id]
+    );
+
+    if (existing.length > 0) {
+      return res.json({
+        success: true,
+        visited: true,
+        visitedAt: toIsoString(existing[0].visited_at),
+        alreadyVisited: true,
+      });
+    }
+
+    const [result] = await pool.query(
+      "INSERT INTO spot_visits (spot_id, user_id) VALUES (?, ?)",
+      [spotId, req.user.id]
+    );
+
+    const [rows] = await pool.query(
+      "SELECT visited_at FROM spot_visits WHERE id = ? LIMIT 1",
+      [result.insertId]
+    );
+
+    return res.json({
+      success: true,
+      visited: true,
+      visitedAt: toIsoString(rows.length > 0 ? rows[0].visited_at : new Date()),
+      alreadyVisited: false,
+    });
+  } catch (error) {
+    console.error("Error marking spot as visited", error);
+    return res.status(500).json({ message: "Failed to mark spot as visited" });
+  }
+});
+
+router.delete("/:id/visit", authMiddleware, async (req, res) => {
+  const spotId = Number.parseInt(req.params.id, 10);
+
+  if (Number.isNaN(spotId)) {
+    return res.status(400).json({ message: "Valid spot id is required" });
+  }
+
+  try {
+    const [existing] = await pool.query(
+      "SELECT id FROM spot_visits WHERE spot_id = ? AND user_id = ? LIMIT 1",
+      [spotId, req.user.id]
+    );
+
+    if (existing.length === 0) {
+      return res.json({ success: true, visited: false, alreadyVisited: false });
+    }
+
+    await pool.query("DELETE FROM spot_visits WHERE id = ?", [existing[0].id]);
+
+    return res.json({ success: true, visited: false, alreadyVisited: true });
+  } catch (error) {
+    console.error("Error removing spot visit", error);
+    return res.status(500).json({ message: "Failed to remove visit" });
+  }
+});
+
+router.get("/visits/streak", authMiddleware, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT visited_at FROM spot_visits WHERE user_id = ? ORDER BY visited_at ASC",
+      [req.user.id]
+    );
+
+    const uniqueDays = [];
+    const seenDays = new Set();
+
+    rows.forEach((row) => {
+      const normalized = normalizeDay(row.visited_at);
+      if (!normalized) {
+        return;
+      }
+      const key = normalized.getTime();
+      if (!seenDays.has(key)) {
+        seenDays.add(key);
+        uniqueDays.push(normalized);
+      }
+    });
+
+    const stats = calculateStreakStats(uniqueDays);
+    const lastVisitedAt = rows.length > 0 ? toIsoString(rows[rows.length - 1].visited_at) : null;
+
+    return res.json({
+      success: true,
+      currentStreak: stats.currentStreak,
+      longestStreak: stats.longestStreak,
+      todayVisited: stats.todayVisited,
+      lastVisitedAt,
+      nextMilestone: stats.currentStreak + 1,
+      totalUniqueDays: uniqueDays.length,
+    });
+  } catch (error) {
+    console.error("Error calculating streak", error);
+    return res.status(500).json({ message: "Failed to load streak data" });
   }
 });
 
