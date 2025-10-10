@@ -847,7 +847,7 @@ export default function MapPage() {
           const message =
             error instanceof Error && error.message
               ? error.message
-              : 'Neizdevās ielādēt sērijas datus.';
+              : 'Neizdevās ielādēt streak datus.';
           setStreakInfo(null);
           setStreakError(message);
         }
@@ -899,7 +899,7 @@ export default function MapPage() {
       const message =
         error instanceof Error && error.message
           ? error.message
-          : 'Neizdevās ielādēt sērijas datus.';
+          : 'Neizdevās ielādēt streak datus.';
       setStreakInfo(null);
       setStreakError(message);
     }
@@ -1414,6 +1414,8 @@ export default function MapPage() {
           className="spotz-card"
           style={{
             maxWidth: '300px',
+            maxHeight: '70vh',
+            overflowY: 'auto',
             padding: '18px',
             display: 'flex',
             flexDirection: 'column',
@@ -1422,21 +1424,6 @@ export default function MapPage() {
             position: 'relative',
           }}
         >
-          <button
-            type="button"
-            onClick={() => setSelectedSpotId(null)}
-            className="spotz-btn spotz-btn--ghost"
-            style={{
-              position: 'absolute',
-              top: '10px',
-              right: '10px',
-              padding: '6px 12px',
-              borderRadius: radii.pill,
-            }}
-            aria-label="Aizvērt spotu"
-          >
-            ×
-          </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
               style={{
@@ -1798,16 +1785,16 @@ export default function MapPage() {
             <span style={{ fontWeight: 700, color: palette.accent }}>
               🔥{' '}
               {streakInfo
-                ? `${streakInfo.currentStreak} dienu sērija`
+                ? `${streakInfo.currentStreak} dienu streak`
                 : streakError
-                ? 'Sēriju neizdevās ielādēt'
-                : 'Ielādējam sēriju…'}
+                ? 'Streak neizdevās ielādēt'
+                : 'Ielādējam streak…'}
             </span>
             <span style={{ fontSize: '12px', color: palette.textSecondary }}>
               {streakInfo
                 ? streakInfo.todayVisited
                   ? 'Šodien esi jau apmeklējis jaunu spotu!'
-                  : 'Apmeklē jaunu spotu, lai noturētu sēriju.'
+                  : 'Apmeklē jaunu spotu, lai noturētu streak.'
                 : streakError
                 ? streakError
                 : 'Sekojam līdzi taviem piedzīvojumiem.'}
@@ -1845,7 +1832,7 @@ export default function MapPage() {
                 fontSize: '11px',
               }}
             >
-              Atjaunot sēriju
+              Atjaunot streak
             </button>
           </div>
         ) : null}
