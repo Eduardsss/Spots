@@ -1128,12 +1128,13 @@ export default function MapPage() {
       return null;
     }
 
-    const galleryImages =
+    const galleryImages = (
       Array.isArray(selectedSpot.images) && selectedSpot.images.length
         ? selectedSpot.images
         : selectedSpot.image
         ? [selectedSpot.image]
-        : [];
+        : []
+    ).filter((image) => typeof image === 'string' && image.trim().length > 0);
     const liked = Boolean(selectedSpot.likedByCurrentUser);
 
     return (
@@ -1485,7 +1486,7 @@ export default function MapPage() {
             borderRadius: radii.lg,
             border: `1px solid ${palette.border}`,
             boxShadow: shadows.soft,
-            background: 'rgba(15, 23, 42, 0.82)',
+            background: palette.surfaceGlass,
             backdropFilter: 'var(--backdrop-blur)',
             display: 'flex',
             flexDirection: 'column',
@@ -1561,9 +1562,23 @@ export default function MapPage() {
             </select>
           </label>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: palette.textPrimary }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              color: palette.textPrimary,
+            }}
+          >
             <span>Tags</span>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: '8px',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+              }}
+            >
               <input
                 value={tagFilterInput}
                 onChange={(event) => handleTagFilterInputChange(event.target.value)}
@@ -1577,7 +1592,7 @@ export default function MapPage() {
                 type="button"
                 onClick={handleTagFilterApply}
                 className="spotz-btn spotz-btn--outline"
-                style={{ padding: '8px 14px', borderRadius: radii.md }}
+                style={{ padding: '8px 14px', borderRadius: radii.md, flexShrink: 0, whiteSpace: 'nowrap' }}
               >
                 Piemērot
               </button>
@@ -1668,7 +1683,7 @@ export default function MapPage() {
               borderRadius: radii.lg,
               border: `1px solid ${palette.border}`,
               boxShadow: shadows.soft,
-              background: 'rgba(15, 23, 42, 0.88)',
+              background: palette.surfaceGlass,
               backdropFilter: 'var(--backdrop-blur)',
               pointerEvents: 'auto',
               display: 'flex',
@@ -1718,7 +1733,7 @@ export default function MapPage() {
                           padding: '10px 14px',
                           borderRadius: radii.md,
                           border: `1px solid ${active ? palette.accent : palette.border}`,
-                          background: active ? 'rgba(34, 197, 94, 0.18)' : 'rgba(15, 23, 42, 0.6)',
+                          background: active ? palette.successSoft : palette.surfaceAlt,
                           color: palette.textPrimary,
                           fontWeight: 600,
                         }}
@@ -1750,7 +1765,7 @@ export default function MapPage() {
           style={{
             position: 'absolute',
             inset: 0,
-            background: 'rgba(15, 23, 42, 0.12)',
+            background: palette.overlay,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
