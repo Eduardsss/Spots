@@ -3,8 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { palette, radii, shadows, transitions } from '../styles/theme';
 
+// Reģistrācijas forma jauniem lietotājiem ar paroles pārbaudi.
 export default function Register() {
   const navigate = useNavigate();
+  // Formas lauki un validācijas stāvokļi reģistrācijas procesam.
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -12,6 +14,7 @@ export default function Register() {
   const [error, setError] = useState('');
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    // Validējam paroles sakritību un nosūtām datus uz API.
     event.preventDefault();
 
     if (password !== confirmPassword) {
@@ -38,6 +41,7 @@ export default function Register() {
     }
   };
 
+  // Karte-stila forma ar laukiem reģistrācijai un saiti uz pieteikšanos.
   return (
     <div
       style={{

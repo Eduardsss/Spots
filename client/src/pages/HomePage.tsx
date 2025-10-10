@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { palette, radii, shadows, transitions } from '../styles/theme';
 
+// Šī komponenta mērķis ir parādīt galvenās Spotz lietotnes sadaļas un kopienas izceltos spotus/autorus.
+
 type HighlightSpot = {
   id: number;
   name: string;
@@ -35,6 +37,7 @@ const heroBackgroundUrl =
 const numberFormatter = new Intl.NumberFormat('lv-LV');
 
 export default function HomePage() {
+  // Glabājam ielādes statusu un galvenos datus, lai varētu atspoguļot dažādus stāvokļus UI.
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [topSpots, setTopSpots] = useState<HighlightSpot[]>([]);
@@ -43,6 +46,7 @@ export default function HomePage() {
   useEffect(() => {
     let isMounted = true;
 
+    // Atsevišķa funkcija, kas pieslēdzas API un saglabā atbildi stāvokļos.
     const loadHighlights = async () => {
       setLoading(true);
       setError(null);
@@ -78,6 +82,7 @@ export default function HomePage() {
   }, []);
 
   const podiumLayout = useMemo(() => {
+    // Nodrošina, ka pjedestāla kartītes tiek pārrēķinātas tikai tad, kad mainās top autori.
     return (
       [
         { creator: topCreators[1], label: '2. vieta', height: 170 },
@@ -89,6 +94,7 @@ export default function HomePage() {
 
   return (
     <main style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+      {/* Galvenais izkārtojums ar hero un kopienas datu blokiem. */}
       <section
         style={{
           position: 'relative',
@@ -424,6 +430,7 @@ export default function HomePage() {
                   gap: '1rem',
                 }}
               >
+                {/* Izveidojam pārskatāmu sarakstu ar līderu vietām un to informāciju. */}
                 {topSpots.map((spot, index) => (
                   <li
                     key={spot.id}

@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate, type Location } from 'react-r
 import { apiFetch } from '../lib/api';
 import { palette, radii, shadows, transitions } from '../styles/theme';
 
+// Pieslēgšanās forma ar validāciju un pāradresāciju pēc veiksmīgas autentifikācijas.
 type AuthUser = {
   id: number;
   username: string;
@@ -24,6 +25,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const state = (location.state as LocationState | null) ?? {};
+  // Formas lauki un kļūdas ziņojumu pārvaldība.
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -35,6 +37,7 @@ export default function Login() {
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    // Nosūtām lietotājvārdu un paroli uz API un saglabājam sesijas datus localStorage.
     event.preventDefault();
     setSubmitting(true);
     setError('');
@@ -61,6 +64,7 @@ export default function Login() {
     }
   };
 
+  // Vienkārša kartes stila forma ar lietotājvārda/paroles laukiem un navigāciju uz reģistrāciju.
   return (
     <div
       style={{
