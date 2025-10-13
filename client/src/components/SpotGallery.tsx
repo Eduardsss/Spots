@@ -200,6 +200,8 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
               background: palette.surface,
             }}
             onClick={(event) => event.stopPropagation()}
+            onMouseEnter={() => setIsHoveringLightboxImage(true)}
+            onMouseLeave={() => setIsHoveringLightboxImage(false)}
           >
             <button
               type="button"
@@ -230,8 +232,6 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
                 transform: isHoveringLightboxImage ? 'scale(1.015)' : 'scale(1)',
                 transition: 'transform 160ms ease-in-out',
               }}
-              onMouseEnter={() => setIsHoveringLightboxImage(true)}
-              onMouseLeave={() => setIsHoveringLightboxImage(false)}
             />
 
             {normalized.length > 1 ? (
