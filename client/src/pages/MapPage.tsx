@@ -784,7 +784,6 @@ export default function MapPage() {
     }
   }, [location.search]);
 
-  // ✅ Šis bija konflikta fragments — tagad salabots:
   useEffect(() => {
     if (!spotIdFromQuery) {
       return;
@@ -800,7 +799,7 @@ export default function MapPage() {
     setSpotIdFromQuery(null);
   }, [spotIdFromQuery, spots]);
 
-  // ✅ Šis paliek, lai automātiski nolasītu lietotāja atrašanās vietu
+  //Šis ir nepieciešams, lai automātiski nolasītu lietotāja atrašanās vietu
   useEffect(() => {
     requestUserLocation();
   }, [requestUserLocation]);
