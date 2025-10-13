@@ -11,6 +11,7 @@ import {
 import { useLocation } from 'react-router-dom';
 import {
   GoogleMap,
+  DirectionsRenderer,
   InfoWindow,
   Marker,
   useJsApiLoader,
@@ -636,6 +637,13 @@ export default function MapPage() {
   const [streakInfo, setStreakInfo] = useState<StreakInfo | null>(null);
   const [streakError, setStreakError] = useState('');
   const [spotIdFromQuery, setSpotIdFromQuery] = useState<number | null>(null);
+  const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
+  const [directionsResult, setDirectionsResult] =
+    useState<google.maps.DirectionsResult | null>(null);
+  const [directionsSpotId, setDirectionsSpotId] = useState<number | null>(null);
+  const [directionsLoadingSpotId, setDirectionsLoadingSpotId] = useState<number | null>(null);
+  const [directionsError, setDirectionsError] = useState('');
+  const [directionsErrorSpotId, setDirectionsErrorSpotId] = useState<number | null>(null);
 
   const ownerIdForQuery = useMemo(() => {
     if (ownerFilter === 'me') {
@@ -1054,14 +1062,23 @@ export default function MapPage() {
     setTagFilterInput('');
   };
 
+  const clearDirections = useCallback(() => {
+    setDirectionsResult(null);
+    setDirectionsSpotId(null);
+    setDirectionsLoadingSpotId(null);
+    setDirectionsError('');
+    setDirectionsErrorSpotId(null);
+  }, []);
+
   const handleMapClick = (event: google.maps.MapMouseEvent) => {
     if (!event.latLng) {
       return;
     }
 
     const lat = event.latLng.lat();
-       const lng = event.latLng.lng();
+    const lng = event.latLng.lng();
     setSelectedSpotId(null);
+    clearDirections();
     setFormError('');
     setFormState({
       mode: 'create',
@@ -1212,24 +1229,62 @@ export default function MapPage() {
     }
   };
 
-  const handleNavigateToSpot = (spot: Spot) => {
-    if (typeof window === 'undefined') {
-      return;
+  const handleShowDirections = useCallback(
+    (spot: Spot) => {
+      if (!isLoaded || typeof window === 'undefined' || !window.google?.maps) {
+        return;
+      }
+
+      if (!userLocation) {
+        setDirectionsResult(null);
+        setDirectionsSpotId(null);
+        setDirectionsLoadingSpotId(null);
+        setDirectionsError('Lai parādītu maršrutu, lūdzu, atļauj piekļuvi savai atrašanās vietai.');
+        setDirectionsErrorSpotId(spot.id);
+        requestUserLocation();
+        return;
+      }
+
+      setDirectionsLoadingSpotId(spot.id);
+      setDirectionsError('');
+      setDirectionsErrorSpotId(null);
+
+      const service = new window.google.maps.DirectionsService();
+      service.route(
+        {
+          origin: { lat: userLocation.lat, lng: userLocation.lng },
+          destination: { lat: spot.lat, lng: spot.lng },
+          travelMode: window.google.maps.TravelMode.WALKING,
+        },
+        (result, status) => {
+          setDirectionsLoadingSpotId(null);
+
+          if (status === 'OK' && result) {
+            setDirectionsResult(result);
+            setDirectionsSpotId(spot.id);
+            const bounds = result.routes?.[0]?.bounds;
+            if (bounds && mapInstance) {
+              mapInstance.fitBounds(bounds);
+            }
+          } else {
+            setDirectionsResult(null);
+            setDirectionsSpotId(null);
+            setDirectionsError('Neizdevās aprēķināt maršrutu. Lūdzu, mēģini vēlreiz.');
+            setDirectionsErrorSpotId(spot.id);
+          }
+        }
+      );
+    },
+    [isLoaded, mapInstance, requestUserLocation, userLocation]
+  );
+
+  const handleClearDirections = useCallback(() => {
+    clearDirections();
+    if (mapInstance && userLocation) {
+      mapInstance.panTo(userLocation);
+      mapInstance.setZoom(12);
     }
-
-    const params = new URLSearchParams({
-      api: '1',
-      destination: `${spot.lat},${spot.lng}`,
-      travelmode: 'walking',
-    });
-
-    if (userLocation) {
-      params.set('origin', `${userLocation.lat},${userLocation.lng}`);
-    }
-
-    const url = `https://www.google.com/maps/dir/?${params.toString()}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
+  }, [clearDirections, mapInstance, userLocation]);
 
   const handleToggleVisited = async (spot: Spot) => {
     if (!currentUser) {
@@ -1403,6 +1458,14 @@ export default function MapPage() {
     const visited = Boolean(selectedSpot.visitedByCurrentUser);
     const visitedAtLabel = visited ? formatVisitedDate(selectedSpot.visitedAt ?? null) : null;
     const visitedButtonBusy = visitedMutationId === selectedSpot.id;
+    const isDirectionsLoading = directionsLoadingSpotId === selectedSpot.id;
+    const hasDirections =
+      Boolean(directionsResult) && directionsSpotId === selectedSpot.id;
+    const directionsLeg = hasDirections
+      ? directionsResult?.routes?.[0]?.legs?.[0] ?? null
+      : null;
+    const showDirectionsError =
+      directionsErrorSpotId === selectedSpot.id && Boolean(directionsError);
 
     return (
       <InfoWindow
@@ -1503,12 +1566,24 @@ export default function MapPage() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
               <button
                 type="button"
-                onClick={() => handleNavigateToSpot(selectedSpot)}
+                onClick={() => handleShowDirections(selectedSpot)}
                 className="spotz-btn spotz-btn--outline"
                 style={{ padding: '8px 14px', borderRadius: radii.md }}
+                disabled={isDirectionsLoading}
+                aria-busy={isDirectionsLoading}
               >
-                Ceļot uz šo vietu
+                {isDirectionsLoading ? 'Aprēķinām maršrutu…' : 'Ceļot uz šo vietu'}
               </button>
+              {hasDirections && directionsLeg ? (
+                <button
+                  type="button"
+                  onClick={handleClearDirections}
+                  className="spotz-btn spotz-btn--ghost"
+                  style={{ padding: '8px 14px', borderRadius: radii.md }}
+                >
+                  Noņemt maršrutu
+                </button>
+              ) : null}
               {currentUser ? (
                 <button
                   type="button"
@@ -1533,6 +1608,34 @@ export default function MapPage() {
             {visited && visitedAtLabel ? (
               <span style={{ fontSize: '12px', color: palette.textMuted }}>
                 Apmeklēts {visitedAtLabel}
+              </span>
+            ) : null}
+            {hasDirections && directionsLeg ? (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  padding: '10px 12px',
+                  borderRadius: radii.md,
+                  background: palette.surfaceAlt,
+                  border: `1px solid ${palette.border}`,
+                }}
+              >
+                <strong style={{ fontSize: '13px', color: palette.textPrimary }}>
+                  Maršruta kopsavilkums
+                </strong>
+                <span style={{ fontSize: '12px', color: palette.textSecondary }}>
+                  Attālums: {directionsLeg?.distance?.text ?? '—'}
+                </span>
+                <span style={{ fontSize: '12px', color: palette.textSecondary }}>
+                  Ilgums: {directionsLeg?.duration?.text ?? '—'}
+                </span>
+              </div>
+            ) : null}
+            {showDirectionsError ? (
+              <span style={{ fontSize: '12px', color: palette.danger }}>
+                {directionsError}
               </span>
             ) : null}
           </div>
@@ -2027,6 +2130,8 @@ export default function MapPage() {
             zoom={12}
             options={MAP_OPTIONS}
             onClick={handleMapClick}
+            onLoad={(map) => setMapInstance(map)}
+            onUnmount={() => setMapInstance(null)}
           >
             {userLocation ? (
               <Marker
@@ -2053,6 +2158,19 @@ export default function MapPage() {
               );
             })}
             {renderInfoWindow()}
+            {directionsResult ? (
+              <DirectionsRenderer
+                directions={directionsResult}
+                options={{
+                  suppressMarkers: true,
+                  polylineOptions: {
+                    strokeColor: palette.accent,
+                    strokeOpacity: 0.9,
+                    strokeWeight: 5,
+                  },
+                }}
+              />
+            ) : null}
           </GoogleMap>
         </div>
       ) : (
