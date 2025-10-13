@@ -28,7 +28,7 @@ import {
 } from '../lib/tags';
 import { palette, radii, shadows, transitions } from '../styles/theme';
 
-// Kartes lapā apvienojam Google Maps karti, spotu sarakstu un iespēju veidot/rediģēt savus punktus.
+// Kartes lapā apvieno Google Maps karti, spotu sarakstu un iespēju veidot/rediģēt savus punktus.
 type AuthUser = {
   id: number;
   username: string;
@@ -1031,7 +1031,7 @@ export default function MapPage() {
   };
 
   const handleTagFilterApply = () => {
-    // Saglabājam tagu filtrā tikai tad, ja ievade nav tukša.
+    // Saglabā tagu filtrā tikai tad, ja ievade nav tukša basicly neļauj tukšu lauku.
     const normalized = normalizeTagName(tagFilterInput);
     if (normalized) {
       setTagFilter(normalized);
