@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { palette, radii, shadows } from '../styles/theme';
 
 type SpotGalleryProps = {
@@ -15,11 +15,68 @@ function sanitizeImages(images: string[]): string[] {
 export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
   const normalized = useMemo(() => sanitizeImages(images), [images]);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   useEffect(() => {
     // Ja saraksts mainās, vienmēr sākam rādīt pirmo attēlu.
     setActiveIndex(0);
+    setLightboxIndex(0);
   }, [normalized.length, normalized[0]]);
+
+  const openLightbox = useCallback(
+    (index: number) => {
+      if (!normalized.length) {
+        return;
+      }
+      setLightboxIndex(Math.min(index, normalized.length - 1));
+      setLightboxOpen(true);
+    },
+    [normalized.length],
+  );
+
+  const closeLightbox = useCallback(() => {
+    setLightboxOpen(false);
+  }, []);
+
+  const showNext = useCallback(() => {
+    setLightboxIndex((current) => {
+      if (!normalized.length) {
+        return 0;
+      }
+      return (current + 1) % normalized.length;
+    });
+  }, [normalized.length]);
+
+  const showPrevious = useCallback(() => {
+    setLightboxIndex((current) => {
+      if (!normalized.length) {
+        return 0;
+      }
+      return (current - 1 + normalized.length) % normalized.length;
+    });
+  }, [normalized.length]);
+
+  useEffect(() => {
+    if (!lightboxOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeLightbox();
+      } else if (event.key === 'ArrowRight') {
+        showNext();
+      } else if (event.key === 'ArrowLeft') {
+        showPrevious();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [lightboxOpen, closeLightbox, showNext, showPrevious]);
 
   if (normalized.length === 0) {
     return (
@@ -55,7 +112,19 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
           overflow: 'hidden',
           boxShadow: shadows.medium,
           border: `1px solid ${palette.border}`,
+          cursor: 'pointer',
+          position: 'relative',
         }}
+        onClick={() => openLightbox(activeIndex)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openLightbox(activeIndex);
+          }
+        }}
+        aria-label="Atvērt attēlu pilnekrāna režīmā"
       >
         <img
           src={activeImage}
@@ -72,7 +141,10 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
               <button
                 key={`${image}-${index}`}
                 type="button"
-                onClick={() => setActiveIndex(index)}
+                onClick={() => {
+                  setActiveIndex(index);
+                  openLightbox(index);
+                }}
                 style={{
                   width: 72,
                   height: 72,
@@ -94,6 +166,111 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
               </button>
             );
           })}
+        </div>
+      ) : null}
+
+      {lightboxOpen && normalized.length ? (
+        <div
+          className="spotz-lightbox-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Skatīt attēlu"
+          onClick={closeLightbox}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            padding: '24px',
+          }}
+        >
+          <div
+            style={{
+              position: 'relative',
+              maxWidth: 'min(90vw, 960px)',
+              maxHeight: '90vh',
+              borderRadius: radii.xl,
+              overflow: 'hidden',
+              boxShadow: shadows.medium,
+              border: `1px solid ${palette.border}`,
+              background: palette.surface,
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={closeLightbox}
+              aria-label="Aizvērt attēlu"
+              className="spotz-btn spotz-btn--ghost"
+              style={{
+                position: 'absolute',
+                top: 12,
+                right: 12,
+                zIndex: 1,
+                borderRadius: radii.pill,
+                padding: '6px 12px',
+              }}
+            >
+              ×
+            </button>
+
+            <img
+              src={normalized[lightboxIndex]}
+              alt={`${title} pilnekrāna attēls`}
+              style={{
+                display: 'block',
+                maxWidth: '100%',
+                maxHeight: '100%',
+                objectFit: 'contain',
+                backgroundColor: palette.surfaceAlt,
+              }}
+            />
+
+            {normalized.length > 1 ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  pointerEvents: 'none',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={showPrevious}
+                  aria-label="Iepriekšējais attēls"
+                  className="spotz-btn spotz-btn--ghost"
+                  style={{
+                    marginLeft: 12,
+                    pointerEvents: 'auto',
+                    borderRadius: radii.pill,
+                    padding: '10px 14px',
+                  }}
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  onClick={showNext}
+                  aria-label="Nākamais attēls"
+                  className="spotz-btn spotz-btn--ghost"
+                  style={{
+                    marginRight: 12,
+                    pointerEvents: 'auto',
+                    borderRadius: radii.pill,
+                    padding: '10px 14px',
+                  }}
+                >
+                  ›
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </div>
