@@ -20,7 +20,7 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
   const [isHoveringLightboxImage, setIsHoveringLightboxImage] = useState(false);
 
   useEffect(() => {
-    // Ja saraksts mainās, vienmēr sākam rādīt pirmo attēlu.
+    // Ja saraksts mainās, vienmēr sāk rādīt pirmo attēlu.
     setActiveIndex(0);
     setLightboxIndex(0);
   }, [normalized.length, normalized[0]]);

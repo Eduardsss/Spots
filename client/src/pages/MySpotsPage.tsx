@@ -387,7 +387,7 @@ function SpotCard({
       : spot.image
       ? [spot.image]
       : [];
-  // Normalizējam tagu sarakstu, lai to būtu viegli attēlot.
+  // Normalizē tagu sarakstu, lai to būtu viegli attēlot.
   const tagList = Array.isArray(spot.tags) ? spot.tags : [];
 
   return (
@@ -491,7 +491,7 @@ function SpotCard({
 
 export default function MySpotsPage() {
   const navigate = useNavigate();
-  // Stāvokļi, kas nepieciešami manu spotu saraksta, modāļu un paziņojumu pārvaldīšanai.
+  // Stāvokļi, kas nepieciešami manu spotu sarakstam.
   const [spots, setSpots] = useState<Spot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

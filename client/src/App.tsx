@@ -12,7 +12,7 @@ import CollectionsPage from './pages/CollectionsPage';
 import { palette, radii, shadows, transitions } from './styles/theme';
 
 function Placeholder({ title, description }: { title: string; description?: string }) {
-  // Vienkāršs bloks, ko izmantojam kļūdu/404 lapās, lai parādītu draudzīgu ziņu.
+  //krc izmet 404 ja kautkas neiet vai nav atrasts
   return (
     <main
       style={{
