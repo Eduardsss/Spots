@@ -143,7 +143,6 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
                 type="button"
                 onClick={() => {
                   setActiveIndex(index);
-                  openLightbox(index);
                 }}
                 style={{
                   width: 72,
@@ -156,7 +155,7 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
                   cursor: 'pointer',
                   flexShrink: 0,
                 }}
-                aria-label={`Skatīt attēlu ${index + 1}`}
+                aria-label={`Izvēlēties attēlu ${index + 1}`}
               >
                 <img
                   src={image}
