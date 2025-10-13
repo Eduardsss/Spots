@@ -17,6 +17,7 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [isHoveringLightboxImage, setIsHoveringLightboxImage] = useState(false);
 
   useEffect(() => {
     // Ja saraksts mainās, vienmēr sākam rādīt pirmo attēlu.
@@ -59,6 +60,7 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
 
   useEffect(() => {
     if (!lightboxOpen) {
+      setIsHoveringLightboxImage(false);
       return;
     }
 
@@ -225,7 +227,11 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
                 maxHeight: '100%',
                 objectFit: 'contain',
                 backgroundColor: palette.surfaceAlt,
+                transform: isHoveringLightboxImage ? 'scale(1.015)' : 'scale(1)',
+                transition: 'transform 160ms ease-in-out',
               }}
+              onMouseEnter={() => setIsHoveringLightboxImage(true)}
+              onMouseLeave={() => setIsHoveringLightboxImage(false)}
             />
 
             {normalized.length > 1 ? (
