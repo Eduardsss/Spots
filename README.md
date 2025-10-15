@@ -1,4 +1,9 @@
 Lai palaistu kodu jāatver 2 termināli: viens ir `cd Spots/client` un otrs ir `cd Spots/server`. Abos jāizpilda `npm install` un tad `npm run dev`.
+Servera pusei nepieciešams PostgreSQL savienojums (piemēram, Supabase). Konfigurācijai izmanto `DATABASE_URL` vai `SUPABASE_DB_URL`
+mainīgo ar pilno savienojuma virkni. Ja Supabase parole satur speciālos simbolus (piemēram, `[` vai `]`), pārliecinies, ka tie ir
+URL kodēti (`%5B`, `%5D`). Ja Supabase prasa SSL, vari iestatīt `DB_SSL=true` (Supabase savienojumiem SSL tiek ieslēgts automātiski
+arī bez šī mainīgā).
+
 Lai testētu https://developer.chrome.com/docs/lighthouse/overview/
 
 Frontend (`client`) pusei nepieciešams konfigurēt vidi:

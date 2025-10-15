@@ -36,7 +36,10 @@ router.post("/", authMiddleware, async (req, res) => {
       const [spots] = await pool.query("SELECT id FROM spots WHERE id = ?", [numericId]);
       if (spots.length === 0) return res.status(404).json({ message: "Spot not found" });
     } else {
-      const [comments] = await pool.query("SELECT id FROM spot_comments WHERE id = ?", [numericId]);
+      const [comments] = await pool.query(
+        "SELECT id FROM spot_comments WHERE id = ?",
+        [numericId]
+      );
       if (comments.length === 0) return res.status(404).json({ message: "Comment not found" });
     }
 
@@ -172,11 +175,14 @@ router.patch("/:id", authMiddleware, requireAdmin, async (req, res) => {
         }
       } else if (report.target_type === "comment") {
         const [comments] = await connection.query(
-          "SELECT id FROM spot_comments WHERE id = ? AND is_deleted = 0 LIMIT 1",
+          "SELECT id FROM spot_comments WHERE id = ? AND is_deleted = FALSE LIMIT 1",
           [report.target_id]
         );
         if (comments.length > 0) {
-          await connection.query("UPDATE spot_comments SET is_deleted = 1 WHERE id = ?", [report.target_id]);
+          await connection.query(
+            "UPDATE spot_comments SET is_deleted = TRUE WHERE id = ?",
+            [report.target_id]
+          );
           removed = true;
         }
       }
