@@ -312,13 +312,20 @@ router.post("/", authMiddleware, async (req, res) => {
     typeof description === "string" && description.trim() ? description.trim() : null;
 
   try {
-    const [result] = await pool.query(
+    const [insertRows] = await pool.query(
       `INSERT INTO spot_collections (user_id, name, description, visibility)
-       VALUES (?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?)
+       RETURNING id`,
       [req.user.id, normalizedName, normalizedDescription, normalizedVisibility]
     );
 
-    const collection = await getCollectionById(result.insertId);
+    const collectionId = insertRows.length > 0 ? insertRows[0].id : undefined;
+
+    if (!collectionId) {
+      throw new Error("Failed to retrieve created collection identifier");
+    }
+
+    const collection = await getCollectionById(collectionId);
 
     return res.status(201).json({ collection });
   } catch (error) {
