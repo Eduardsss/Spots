@@ -1,4 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_SUPABASE_URL ?? '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 
 type JsonLike = Record<string, unknown> | Array<unknown>;
@@ -24,8 +26,17 @@ export async function apiFetch<T = unknown>(path: string, options: ApiFetchOptio
   const headers = new Headers(headersInit ?? {});
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
+
+  if (SUPABASE_ANON_KEY && !headers.has('apikey')) {
+    headers.set('apikey', SUPABASE_ANON_KEY);
+  }
+
+  if (!headers.has('Authorization')) {
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    } else if (SUPABASE_ANON_KEY) {
+      headers.set('Authorization', `Bearer ${SUPABASE_ANON_KEY}`);
+    }
   }
 
   if (!headers.has('Accept')) {
