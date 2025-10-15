@@ -1,5 +1,21 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'VITE_API_URL=https://spotz-backend.onrender.com';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_SUPABASE_URL ?? '';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+const SUPABASE_URL_STRING = (() => {
+  if (!SUPABASE_URL) {
+    return '';
+  }
+
+  try {
+    const url = new URL(SUPABASE_URL);
+    return url.toString();
+  } catch (error) {
+    console.warn('Invalid Supabase URL provided in environment:', error);
+    return '';
+  }
+})();
 
 
 type JsonLike = Record<string, unknown> | Array<unknown>;
@@ -20,12 +36,54 @@ function isJsonLike(body: ApiFetchOptions['body']): body is JsonLike {
   );
 }
 
+function resolveUrl(path: string): { url: string; isSupabaseRequest: boolean } {
+  const baseUrl = path.startsWith('http')
+    ? path
+    : `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+
+  if (!SUPABASE_URL_STRING) {
+    return { url: baseUrl, isSupabaseRequest: false };
+  }
+
+  try {
+    const reference =
+      typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+    const target = new URL(baseUrl, reference);
+    const supabase = new URL(SUPABASE_URL_STRING);
+
+    const isSupabaseRequest = target.toString().startsWith(supabase.toString());
+
+    if (isSupabaseRequest && SUPABASE_ANON_KEY) {
+      if (!target.searchParams.has('apikey')) {
+        target.searchParams.set('apikey', SUPABASE_ANON_KEY);
+      }
+
+      return { url: target.toString(), isSupabaseRequest: true };
+    }
+
+    return { url: target.toString(), isSupabaseRequest };
+  } catch (error) {
+    console.warn('Failed to resolve request URL:', error);
+    return { url: baseUrl, isSupabaseRequest: false };
+  }
+}
+
 export async function apiFetch<T = unknown>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const { headers: headersInit, body, ...rest } = options;
   const headers = new Headers(headersInit ?? {});
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  if (token && !headers.has('Authorization')) {
+
+  const { url, isSupabaseRequest } = resolveUrl(path);
+
+  if (isSupabaseRequest) {
+    if (SUPABASE_ANON_KEY) {
+      if (!headers.has('apikey')) {
+        headers.set('apikey', SUPABASE_ANON_KEY);
+      }
+      headers.set('Authorization', `Bearer ${SUPABASE_ANON_KEY}`);
+    }
+  } else if (!headers.has('Authorization') && token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
@@ -42,10 +100,6 @@ export async function apiFetch<T = unknown>(path: string, options: ApiFetchOptio
   } else if (body !== undefined) {
     requestBody = body as BodyInit;
   }
-
-  const url = path.startsWith('http')
-    ? path
-    : `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
 
   const response = await fetch(url, {
     ...rest,

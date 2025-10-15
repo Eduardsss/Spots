@@ -22,11 +22,14 @@ router.get("/overview", async (_req, res) => {
     );
 
     const [[spotStats]] = await pool.query(
-      "SELECT COUNT(*) AS totalSpots, SUM(status = 'public') AS publicSpots, SUM(status = 'private') AS privateSpots FROM spots"
+      `SELECT COUNT(*) AS totalSpots,
+              SUM(CASE WHEN status = 'public' THEN 1 ELSE 0 END) AS publicSpots,
+              SUM(CASE WHEN status = 'private' THEN 1 ELSE 0 END) AS privateSpots
+       FROM spots`
     );
 
     const [[commentStats]] = await pool.query(
-      "SELECT COUNT(*) AS totalComments FROM spot_comments WHERE is_deleted = 0"
+      "SELECT COUNT(*) AS totalComments FROM spot_comments WHERE is_deleted = FALSE"
     );
 
     const [[pendingReports]] = await pool.query(
@@ -93,7 +96,7 @@ router.get("/moderation/comments", async (_req, res) => {
        JOIN spot_comments c ON r.target_type = 'comment' AND r.target_id = c.id
        JOIN users u ON c.user_id = u.id
        JOIN spots s ON c.spot_id = s.id
-       WHERE r.status = 'pending' AND c.is_deleted = 0
+       WHERE r.status = 'pending' AND c.is_deleted = FALSE
        GROUP BY c.id, c.content, c.created_at, c.spot_id, s.name, u.username
        ORDER BY lastReportedAt DESC`
     );
@@ -125,7 +128,7 @@ router.delete("/comments/:id", async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      "SELECT id FROM spot_comments WHERE id = ? AND is_deleted = 0",
+      "SELECT id FROM spot_comments WHERE id = ? AND is_deleted = FALSE",
       [commentId]
     );
 
@@ -134,7 +137,7 @@ router.delete("/comments/:id", async (req, res) => {
     }
 
     await pool.query(
-      "UPDATE spot_comments SET is_deleted = 1 WHERE id = ?",
+      "UPDATE spot_comments SET is_deleted = TRUE WHERE id = ?",
       [commentId]
     );
 

@@ -937,20 +937,17 @@ router.post("/:id/visit", authMiddleware, async (req, res) => {
       });
     }
 
-    const [result] = await pool.query(
-      "INSERT INTO spot_visits (spot_id, user_id) VALUES (?, ?)",
+    const [insertRows] = await pool.query(
+      "INSERT INTO spot_visits (spot_id, user_id) VALUES (?, ?) RETURNING id, visited_at",
       [spotId, req.user.id]
     );
 
-    const [rows] = await pool.query(
-      "SELECT visited_at FROM spot_visits WHERE id = ? LIMIT 1",
-      [result.insertId]
-    );
+    const insertedVisit = insertRows.length > 0 ? insertRows[0] : null;
 
     return res.json({
       success: true,
       visited: true,
-      visitedAt: toIsoString(rows.length > 0 ? rows[0].visited_at : new Date()),
+      visitedAt: toIsoString(insertedVisit?.visited_at ?? new Date()),
       alreadyVisited: false,
     });
   } catch (error) {
@@ -1077,8 +1074,8 @@ router.post("/", authMiddleware, async (req, res) => {
   }
 
   try {
-    const [result] = await pool.query(
-      "INSERT INTO spots (user_id, name, description, image, lat, lng, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    const [insertRows] = await pool.query(
+      "INSERT INTO spots (user_id, name, description, image, lat, lng, status) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
       [
         req.user.id,
         name,
@@ -1090,15 +1087,21 @@ router.post("/", authMiddleware, async (req, res) => {
       ]
     );
 
+    const createdSpotId = insertRows.length > 0 ? insertRows[0].id : undefined;
+
+    if (!createdSpotId) {
+      throw new Error("Failed to retrieve created spot identifier");
+    }
+
     if (normalizedImages.length > 0) {
-      await replaceSpotImages(result.insertId, normalizedImages);
+      await replaceSpotImages(createdSpotId, normalizedImages);
     }
 
     if (tags.length > 0) {
-      await syncSpotTags(result.insertId, tags);
+      await syncSpotTags(createdSpotId, tags);
     }
 
-    const spot = await getSpotById(result.insertId, req.user.id);
+    const spot = await getSpotById(createdSpotId, req.user.id);
 
     return res.status(201).json({ spot });
   } catch (error) {
@@ -1269,7 +1272,7 @@ router.post("/:id/like", authMiddleware, async (req, res) => {
 
     return res.status(201).json({ success: true });
   } catch (error) {
-    if (error.code === "ER_DUP_ENTRY") {
+    if (error.code === "23505") {
       return res.status(409).json({ message: "Spot already liked" });
     }
 
@@ -1334,7 +1337,7 @@ router.get("/:id/comments", async (req, res) => {
       `SELECT c.id, c.content, c.created_at, u.id AS user_id, u.username, u.profile_image
        FROM spot_comments c
        JOIN users u ON c.user_id = u.id
-       WHERE c.spot_id = ? AND c.is_deleted = 0
+       WHERE c.spot_id = ? AND c.is_deleted = FALSE
        ORDER BY c.created_at ASC`,
       [spotId]
     );
@@ -1373,10 +1376,16 @@ router.post("/:id/comments", authMiddleware, async (req, res) => {
         .json({ message: "Comments are available only for public spots" });
     }
 
-    const [result] = await pool.query(
-      "INSERT INTO spot_comments (spot_id, user_id, content) VALUES (?, ?, ?)",
+    const [insertRows] = await pool.query(
+      "INSERT INTO spot_comments (spot_id, user_id, content) VALUES (?, ?, ?) RETURNING id",
       [spotId, req.user.id, trimmedContent]
     );
+
+    const createdCommentId = insertRows.length > 0 ? insertRows[0].id : undefined;
+
+    if (!createdCommentId) {
+      throw new Error("Failed to retrieve created comment identifier");
+    }
 
     const [rows] = await pool.query(
       `SELECT c.id, c.content, c.created_at, u.id AS user_id, u.username, u.profile_image
@@ -1384,7 +1393,7 @@ router.post("/:id/comments", authMiddleware, async (req, res) => {
        JOIN users u ON c.user_id = u.id
        WHERE c.id = ?
        LIMIT 1`,
-      [result.insertId]
+      [createdCommentId]
     );
 
     if (rows.length === 0) {
@@ -1418,7 +1427,7 @@ router.delete("/:spotId/comments/:commentId", authMiddleware, async (req, res) =
     }
 
     const [rows] = await pool.query(
-      "SELECT id FROM spot_comments WHERE id = ? AND spot_id = ? AND is_deleted = 0",
+      "SELECT id FROM spot_comments WHERE id = ? AND spot_id = ? AND is_deleted = FALSE",
       [commentId, spotId]
     );
 
@@ -1427,7 +1436,7 @@ router.delete("/:spotId/comments/:commentId", authMiddleware, async (req, res) =
     }
 
     await pool.query(
-      "UPDATE spot_comments SET is_deleted = 1 WHERE id = ?",
+      "UPDATE spot_comments SET is_deleted = TRUE WHERE id = ?",
       [commentId]
     );
 
