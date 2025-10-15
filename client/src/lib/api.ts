@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'VITE_API_URL=https://spotz-backend.onrender.com';
+
 
 
 type JsonLike = Record<string, unknown> | Array<unknown>;
