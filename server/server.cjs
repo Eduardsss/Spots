@@ -1,32 +1,12 @@
-require("dotenv").config();
+import express from 'express'
+import cors from 'cors'
+import spotsRouter from './src/routes/spots.js'
 
-const express = require("express");
-const cors = require("cors");
-const pool = require("./src/db");
-const authRoutes = require("./src/routes/auth");
-const userRoutes = require("./src/routes/users");
-const spotRoutes = require("./src/routes/spots");
-const collectionRoutes = require("./src/routes/collections");
-const adminRoutes = require("./src/routes/admin");
-const reportRoutes = require("./src/routes/reports");
+const app = express()
+app.use(cors())
+app.use(express.json())
 
-const app = express();
+app.use('/spots', spotsRouter)
 
-app.use(cors());
-app.use(express.json({ limit: "10mb" }));
-
-app.get("/health", (_req, res) => {
-  res.json({ ok: true });
-});
-
-app.use("/auth", authRoutes);
-app.use("/users", userRoutes);
-app.use("/spots", spotRoutes);
-app.use("/collections", collectionRoutes);
-app.use("/admin", adminRoutes);
-app.use("/reports", reportRoutes);
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
+const port = process.env.PORT || 3000
+app.listen(port, () => console.log(`✅ Server running on port ${port}`))
