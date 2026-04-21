@@ -3,7 +3,7 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
-const supabaseUrl = process.env.SUPABASE_URL || 'https://omhbavxbszlekkxxiylc.supabase.co'
+const supabaseUrl = process.env.SUPABASE_URL || 'https://hzknbfiromzkwgazooxm.supabase.co'
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseServiceRoleKey)
