@@ -1,73 +1,68 @@
-const express = require("express");
+import express from 'express'
+import { supabase } from '../db.js'
+import authMiddleware from '../middleware/auth.js'
 
-const pool = require("../db");
-const authMiddleware = require("../middleware/auth");
+const router = express.Router()
 
-const router = express.Router();
+router.put('/me', authMiddleware, async (req, res) => {
+  const { username, profile_image } = req.body ?? {}
 
-router.put("/me", authMiddleware, async (req, res) => {
-  const { username, profile_image } = req.body;
-
-  if (typeof username === "undefined" && typeof profile_image === "undefined") {
+  if (typeof username === 'undefined' && typeof profile_image === 'undefined') {
     return res
       .status(400)
-      .json({ message: "At least one field (username or profile_image) is required" });
+      .json({ message: 'At least one field (username or profile_image) is required' })
   }
 
   try {
-    let normalizedUsername;
+    let normalizedUsername
 
-    if (typeof username !== "undefined") {
-      normalizedUsername = username.trim();
+    if (typeof username !== 'undefined') {
+      normalizedUsername = username.trim()
 
       if (!normalizedUsername) {
-        return res.status(400).json({ message: "Username cannot be empty" });
+        return res.status(400).json({ message: 'Username cannot be empty' })
       }
 
-      const [existingUsers] = await pool.query(
-        "SELECT id FROM users WHERE username = ? AND id != ? LIMIT 1",
-        [normalizedUsername, req.user.id]
-      );
+      const { data: existingUsers } = await supabase
+        .from('users')
+        .select('id')
+        .eq('username', normalizedUsername)
+        .neq('id', req.user.id)
+        .limit(1)
 
-      if (existingUsers.length > 0) {
-        return res.status(409).json({ message: "Username already taken" });
+      if (existingUsers && existingUsers.length > 0) {
+        return res.status(409).json({ message: 'Username already taken' })
       }
     }
 
-    const updates = [];
-    const params = [];
+    const updates = {}
+    if (typeof username !== 'undefined') updates.username = normalizedUsername
+    if (typeof profile_image !== 'undefined') updates.profile_image = profile_image || null
 
-    if (typeof username !== "undefined") {
-      updates.push("username = ?");
-      params.push(normalizedUsername);
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: 'No valid fields provided for update' })
     }
 
-    if (typeof profile_image !== "undefined") {
-      updates.push("profile_image = ?");
-      params.push(profile_image || null);
+    const { error: updateError } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', req.user.id)
+
+    if (updateError) throw updateError
+
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, username, role, profile_image')
+      .eq('id', req.user.id)
+      .limit(1)
+
+    if (error) throw error
+
+    if (!users || users.length === 0) {
+      return res.status(404).json({ message: 'User not found' })
     }
 
-    if (updates.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "No valid fields provided for update" });
-    }
-
-    params.push(req.user.id);
-
-    await pool.query(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, params);
-
-    const [users] = await pool.query(
-      "SELECT id, username, role, profile_image FROM users WHERE id = ? LIMIT 1",
-      [req.user.id]
-    );
-
-    if (users.length === 0) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const user = users[0];
-
+    const user = users[0]
     return res.json({
       success: true,
       user: {
@@ -76,11 +71,11 @@ router.put("/me", authMiddleware, async (req, res) => {
         role: user.role,
         profile_image: user.profile_image || null,
       },
-    });
+    })
   } catch (error) {
-    console.error("Error updating user profile", error);
-    return res.status(500).json({ message: "Failed to update profile" });
+    console.error('Error updating user profile', error)
+    return res.status(500).json({ message: 'Failed to update profile' })
   }
-});
+})
 
-module.exports = router;
+export default router

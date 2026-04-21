@@ -1,156 +1,166 @@
-const express = require("express");
+import express from 'express'
+import { supabase } from '../db.js'
+import authMiddleware from '../middleware/auth.js'
 
-const pool = require("../db");
-const authMiddleware = require("../middleware/auth");
-
-const router = express.Router();
+const router = express.Router()
 
 const requireAdmin = (req, res, next) => {
-  if (!req.user || req.user.role !== "admin") {
-    return res.status(403).json({ message: "Administrator access required" });
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Administrator access required' })
   }
+  return next()
+}
 
-  return next();
-};
+router.use(authMiddleware, requireAdmin)
 
-router.use(authMiddleware, requireAdmin);
-
-router.get("/overview", async (_req, res) => {
+router.get('/overview', async (_req, res) => {
   try {
-    const [[userStats]] = await pool.query(
-      "SELECT COUNT(*) AS totalUsers FROM users"
-    );
+    const { count: totalUsers } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
 
-    const [[spotStats]] = await pool.query(
-      `SELECT COUNT(*) AS totalSpots,
-              SUM(CASE WHEN status = 'public' THEN 1 ELSE 0 END) AS publicSpots,
-              SUM(CASE WHEN status = 'private' THEN 1 ELSE 0 END) AS privateSpots
-       FROM spots`
-    );
+    const { count: totalSpots } = await supabase
+      .from('spots')
+      .select('*', { count: 'exact', head: true })
 
-    const [[commentStats]] = await pool.query(
-      "SELECT COUNT(*) AS totalComments FROM spot_comments WHERE is_deleted = FALSE"
-    );
+    const { count: publicSpots } = await supabase
+      .from('spots')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'public')
 
-    const [[pendingReports]] = await pool.query(
-      "SELECT COUNT(*) AS pendingReports FROM reports WHERE status = 'pending'"
-    );
+    const { count: privateSpots } = await supabase
+      .from('spots')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'private')
 
-    const [recentUsers] = await pool.query(
-      `SELECT id, username, role, created_at
-       FROM users
-       ORDER BY created_at DESC
-       LIMIT 5`
-    );
+    const { count: totalComments } = await supabase
+      .from('spot_comments')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_deleted', false)
 
-    const [recentSpots] = await pool.query(
-      `SELECT s.id, s.name, s.status, s.created_at, u.username AS owner
-       FROM spots s
-       JOIN users u ON s.user_id = u.id
-       ORDER BY s.created_at DESC
-       LIMIT 5`
-    );
+    const { count: pendingReports } = await supabase
+      .from('reports')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending')
+
+    const { data: recentUsers } = await supabase
+      .from('users')
+      .select('id, username, role, created_at')
+      .order('created_at', { ascending: false })
+      .limit(5)
+
+    const { data: recentSpotsRaw } = await supabase
+      .from('spots')
+      .select('id, name, status, created_at, users!spots_user_id_fkey (username)')
+      .order('created_at', { ascending: false })
+      .limit(5)
 
     return res.json({
       stats: {
-        totalUsers: Number(userStats.totalUsers || 0),
-        totalSpots: Number(spotStats.totalSpots || 0),
-        publicSpots: Number(spotStats.publicSpots || 0),
-        privateSpots: Number(spotStats.privateSpots || 0),
-        totalComments: Number(commentStats.totalComments || 0),
-        pendingReports: Number(pendingReports.pendingReports || 0),
+        totalUsers: totalUsers ?? 0,
+        totalSpots: totalSpots ?? 0,
+        publicSpots: publicSpots ?? 0,
+        privateSpots: privateSpots ?? 0,
+        totalComments: totalComments ?? 0,
+        pendingReports: pendingReports ?? 0,
       },
-      recentUsers: recentUsers.map((user) => ({
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        created_at: user.created_at,
+      recentUsers: (recentUsers ?? []).map((u) => ({
+        id: u.id,
+        username: u.username,
+        role: u.role,
+        created_at: u.created_at,
       })),
-      recentSpots: recentSpots.map((spot) => ({
-        id: spot.id,
-        name: spot.name,
-        status: spot.status,
-        created_at: spot.created_at,
-        owner: spot.owner,
+      recentSpots: (recentSpotsRaw ?? []).map((s) => ({
+        id: s.id,
+        name: s.name,
+        status: s.status,
+        created_at: s.created_at,
+        owner: s.users?.username ?? null,
       })),
-    });
+    })
   } catch (error) {
-    console.error("Error loading admin overview", error);
-    return res.status(500).json({ message: "Failed to load overview" });
+    console.error('Error loading admin overview', error)
+    return res.status(500).json({ message: 'Failed to load overview' })
   }
-});
+})
 
-router.get("/moderation/comments", async (_req, res) => {
+router.get('/moderation/comments', async (_req, res) => {
   try {
-    const [rows] = await pool.query(
-      `SELECT
-         c.id,
-         c.content,
-         c.created_at,
-         c.spot_id,
-         s.name AS spot_name,
-         u.username AS author,
-         COUNT(r.id) AS reportCount,
-         MAX(r.created_at) AS lastReportedAt
-       FROM reports r
-       JOIN spot_comments c ON r.target_type = 'comment' AND r.target_id = c.id
-       JOIN users u ON c.user_id = u.id
-       JOIN spots s ON c.spot_id = s.id
-       WHERE r.status = 'pending' AND c.is_deleted = FALSE
-       GROUP BY c.id, c.content, c.created_at, c.spot_id, s.name, u.username
-       ORDER BY lastReportedAt DESC`
-    );
+    const { data: reportRows } = await supabase
+      .from('reports')
+      .select(`
+        target_id,
+        spot_comments!reports_target_id_fkey (
+          id, content, created_at, spot_id, is_deleted,
+          users!spot_comments_user_id_fkey (username),
+          spots!spot_comments_spot_id_fkey (name)
+        )
+      `)
+      .eq('target_type', 'comment')
+      .eq('status', 'pending')
 
-    return res.json({
-      comments: rows.map((row) => ({
-        id: row.id,
-        content: row.content,
-        created_at: row.created_at,
-        spot_id: row.spot_id,
-        spot_name: row.spot_name,
-        author: row.author,
-        reportCount: Number(row.reportCount || 0),
-        lastReportedAt: row.lastReportedAt,
-      })),
-    });
-  } catch (error) {
-    console.error("Error fetching moderation comments", error);
-    return res.status(500).json({ message: "Failed to load moderation queue" });
-  }
-});
-
-router.delete("/comments/:id", async (req, res) => {
-  const commentId = Number(req.params.id);
-
-  if (Number.isNaN(commentId)) {
-    return res.status(400).json({ message: "Invalid comment ID" });
-  }
-
-  try {
-    const [rows] = await pool.query(
-      "SELECT id FROM spot_comments WHERE id = ? AND is_deleted = FALSE",
-      [commentId]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ message: "Comment not found" });
+    const seen = new Map()
+    for (const row of reportRows ?? []) {
+      const c = row.spot_comments
+      if (!c || c.is_deleted) continue
+      const id = c.id
+      if (!seen.has(id)) {
+        seen.set(id, {
+          id,
+          content: c.content,
+          created_at: c.created_at,
+          spot_id: c.spot_id,
+          spot_name: c.spots?.name ?? null,
+          author: c.users?.username ?? null,
+          reportCount: 1,
+          lastReportedAt: null,
+        })
+      } else {
+        seen.get(id).reportCount++
+      }
     }
 
-    await pool.query(
-      "UPDATE spot_comments SET is_deleted = TRUE WHERE id = ?",
-      [commentId]
-    );
-
-    await pool.query(
-      "UPDATE reports SET status = 'resolved' WHERE target_type = 'comment' AND target_id = ?",
-      [commentId]
-    );
-
-    return res.json({ success: true });
+    return res.json({ comments: Array.from(seen.values()) })
   } catch (error) {
-    console.error("Error deleting comment", error);
-    return res.status(500).json({ message: "Failed to delete comment" });
+    console.error('Error fetching moderation comments', error)
+    return res.status(500).json({ message: 'Failed to load moderation queue' })
   }
-});
+})
 
-module.exports = router;
+router.delete('/comments/:id', async (req, res) => {
+  const commentId = Number(req.params.id)
+  if (Number.isNaN(commentId)) {
+    return res.status(400).json({ message: 'Invalid comment ID' })
+  }
+
+  try {
+    const { data: rows } = await supabase
+      .from('spot_comments')
+      .select('id')
+      .eq('id', commentId)
+      .eq('is_deleted', false)
+      .limit(1)
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ message: 'Comment not found' })
+    }
+
+    await supabase
+      .from('spot_comments')
+      .update({ is_deleted: true })
+      .eq('id', commentId)
+
+    await supabase
+      .from('reports')
+      .update({ status: 'resolved' })
+      .eq('target_type', 'comment')
+      .eq('target_id', commentId)
+
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Error deleting comment', error)
+    return res.status(500).json({ message: 'Failed to delete comment' })
+  }
+})
+
+export default router
