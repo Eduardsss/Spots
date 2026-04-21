@@ -493,7 +493,7 @@ router.get('/:id/comments', optionalAuth, async (req, res) => {
         content: c.content,
         created_at: c.created_at,
         user_id: c.user_id,
-        author: {
+        user: {
           id: c.user_id,
           username: c.users?.username ?? null,
           profile_image: c.users?.profile_image ?? null,
@@ -531,7 +531,7 @@ router.post('/:id/comments', authMiddleware, async (req, res) => {
         content: data.content,
         created_at: data.created_at,
         user_id: data.user_id,
-        author: { id: req.user.id, username: req.user.username, profile_image: null },
+        user: { id: req.user.id, username: req.user.username, profile_image: null },
       },
     })
   } catch (err) {
