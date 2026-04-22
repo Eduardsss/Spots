@@ -392,10 +392,9 @@ function SpotCard({
 
   return (
     <article
-      className="spotz-card"
+      className="spotz-card spotz-myspot-card"
       style={{
         display: 'flex',
-        flexDirection: 'row',
         gap: '24px',
         alignItems: 'stretch',
         padding: '24px',
@@ -482,7 +481,7 @@ function SpotCard({
         </div>
       </div>
 
-      <div style={{ width: 'min(260px, 100%)', flexShrink: 0 }}>
+      <div className="spotz-myspot-img">
         <SpotGallery images={galleryImages} title={spot.name} height={220} />
       </div>
     </article>
@@ -670,6 +669,14 @@ export default function MySpotsPage() {
   // Galvenais saturs: virsraksts, stāvokļa paziņojumi un saraksts ar lietotāja spotiem.
   return (
     <div style={{ padding: '40px clamp(16px, 4vw, 48px) 80px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <style>{`
+        .spotz-myspot-card { flex-direction: row; }
+        .spotz-myspot-img { width: min(260px, 100%); flex-shrink: 0; }
+        @media (max-width: 640px) {
+          .spotz-myspot-card { flex-direction: column-reverse; }
+          .spotz-myspot-img { width: 100%; }
+        }
+      `}</style>
       <header style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '32px', color: palette.textPrimary }}>Mani spoti</h1>

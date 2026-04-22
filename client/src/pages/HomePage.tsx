@@ -94,6 +94,18 @@ export default function HomePage() {
 
   return (
     <main style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+      <style>{`
+        .spotz-hero-cta { flex-direction: row; }
+        .spotz-hero-cta a { flex: 0 1 auto; }
+        @media (max-width: 480px) {
+          .spotz-hero-cta { flex-direction: column; }
+          .spotz-hero-cta a { width: 100%; text-align: center; }
+        }
+        .spotz-podium-item { flex: 0 1 200px; }
+        @media (max-width: 480px) {
+          .spotz-podium-item { flex: 1 1 140px; }
+        }
+      `}</style>
       {/* Galvenais izkārtojums ar hero un kopienas datu blokiem. */}
       <section
         style={{
@@ -108,7 +120,8 @@ export default function HomePage() {
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
-          padding: '0 1.5rem',
+          backgroundAttachment: 'scroll',
+          padding: '80px clamp(16px, 5vw, 48px)',
           transition: `color ${transitions.slow}`,
         }}
       >
@@ -145,7 +158,7 @@ export default function HomePage() {
           >
             Saglabā iemīļotās vietas, veido maršrutus draugiem un iepazīsti kopienas izvēlētos punktus.
           </p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <div className="spotz-hero-cta" style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap', width: '100%' }}>
             <Link
               to="/map"
               className="spotz-btn spotz-btn--primary"
@@ -245,8 +258,8 @@ export default function HomePage() {
                 return (
                   <div
                     key={creator.id}
+                    className="spotz-podium-item"
                     style={{
-                      flex: '0 1 220px',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
