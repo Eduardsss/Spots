@@ -624,7 +624,7 @@ export default function PublicSpotsPage() {
   return (
     <main
       style={{
-        padding: '64px clamp(16px, 5vw, 72px) 88px',
+        padding: 'clamp(32px, 8vw, 64px) clamp(16px, 5vw, 72px) 88px',
         background: palette.background,
         minHeight: 'calc(100vh - 72px)',
         transition: 'background var(--transition-slow)',
@@ -693,7 +693,7 @@ export default function PublicSpotsPage() {
             />
           </label>
 
-          <label style={{ width: '200px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <label style={{ flex: '1 1 160px', maxWidth: '240px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <span style={{ fontSize: '14px', color: palette.textSecondary, fontWeight: 600 }}>Kārtot pēc</span>
             <select
               value={sort}

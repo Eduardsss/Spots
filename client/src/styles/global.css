@@ -367,6 +367,21 @@ button:disabled {
   }
 }
 
+@media (max-width: 640px) {
+  .spotz-modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .spotz-modal {
+    max-width: 100%;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    max-height: 92vh;
+    margin: 0;
+    padding: 20px 16px 32px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
