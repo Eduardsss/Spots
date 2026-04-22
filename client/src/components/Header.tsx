@@ -217,23 +217,18 @@ export default function Header() {
             {/* Mobile avatar when logged in */}
             <div className="spotz-hamburger" style={{ alignItems: 'center', gap: '8px' }}>
               {user && (
-                <div style={{ position: 'relative' }}>
-                  <button
-                    type="button"
-                    onClick={() => setIsPopupOpen((o) => !o)}
-                    className="spotz-avatar"
-                    style={{ padding: 0, width: 36, height: 36, fontSize: 14, border: '2px solid rgba(37, 99, 235, 0.35)', borderRadius: radii.full }}
-                  >
-                    {user.profile_image ? (
-                      <img src={user.profile_image} alt={user.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      (user.username?.slice(0, 1) || '?').toUpperCase()
-                    )}
-                  </button>
-                  {isPopupOpen && (
-                    <ProfilePopup user={user} onClose={() => setIsPopupOpen(false)} onUserUpdated={handleUserUpdated} onLogout={handleLogout} />
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMenuOpen((o) => !o)}
+                  className="spotz-avatar"
+                  style={{ padding: 0, width: 36, height: 36, fontSize: 14, border: '2px solid rgba(37, 99, 235, 0.35)', borderRadius: radii.full }}
+                >
+                  {user.profile_image ? (
+                    <img src={user.profile_image} alt={user.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    (user.username?.slice(0, 1) || '?').toUpperCase()
                   )}
-                </div>
+                </button>
               )}
 
               {/* Hamburger button */}

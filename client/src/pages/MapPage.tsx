@@ -644,6 +644,7 @@ export default function MapPage() {
   const [directionsLoadingSpotId, setDirectionsLoadingSpotId] = useState<number | null>(null);
   const [directionsError, setDirectionsError] = useState('');
   const [directionsErrorSpotId, setDirectionsErrorSpotId] = useState<number | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const ownerIdForQuery = useMemo(() => {
     if (ownerFilter === 'me') {
@@ -1817,6 +1818,17 @@ export default function MapPage() {
   // UI tiek veidots no vairākiem slāņiem: kartes pārklājumiem un vadības paneļiem.
   return (
     <div style={{ height: 'calc(100vh - 160px)', minHeight: '520px', position: 'relative' }}>
+      <style>{`
+        .spotz-map-filters { display: block; }
+        .spotz-map-filter-toggle { display: none; }
+        .spotz-map-right-panel { display: flex; }
+        @media (max-width: 768px) {
+          .spotz-map-filters { display: none; }
+          .spotz-map-filters.is-open { display: block; }
+          .spotz-map-filter-toggle { display: flex; }
+          .spotz-map-right-panel { display: none; }
+        }
+      `}</style>
       {notification ? (
         <div
           style={{
@@ -1840,12 +1852,12 @@ export default function MapPage() {
       ) : null}
 
       <div
+        className="spotz-map-right-panel"
         style={{
           position: 'absolute',
           top: 20,
           right: 20,
           zIndex: 30,
-          display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-end',
           gap: '12px',
@@ -1975,7 +1987,31 @@ export default function MapPage() {
 
       </div>
 
+      {/* Mobile filter toggle button */}
+      <button
+        type="button"
+        onClick={() => setFiltersOpen((o) => !o)}
+        className="spotz-btn spotz-btn--outline spotz-map-filter-toggle"
+        style={{
+          position: 'absolute',
+          top: 12,
+          left: 12,
+          zIndex: 31,
+          padding: '8px 14px',
+          borderRadius: 'var(--radius-pill)',
+          background: 'var(--surface-glass)',
+          backdropFilter: 'var(--backdrop-blur)',
+          boxShadow: '0 2px 8px rgba(15,23,42,0.15)',
+          gap: '6px',
+          fontWeight: 600,
+          fontSize: '13px',
+        }}
+      >
+        {filtersOpen ? '✕ Aizvērt' : '⚙ Filtri'}
+      </button>
+
       <div
+        className={`spotz-map-filters${filtersOpen ? ' is-open' : ''}`}
         style={{
           position: 'absolute',
           top: 20,
