@@ -61,7 +61,7 @@ Spots/
 ### 1. solis — Datubāzes uzstādīšana (Supabase)
 
 1. Atver savu Supabase projektu → **SQL Editor**
-2. Ielīmē un izpildi visu faila `schema.sql` saturu
+2. Ielīmē un izpildi visu faila `server/schema.sql` saturu
 3. Tas izveidos visas nepieciešamās tabulas: `users`, `spots`, `spot_images`, `spot_tags`, `likes`, `visits`, `comments`, `collections`, `collection_spots`, `reports`
 
 ---
