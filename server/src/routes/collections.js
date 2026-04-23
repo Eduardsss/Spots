@@ -2,6 +2,7 @@ import express from 'express'
 import jwt from 'jsonwebtoken'
 import { supabase } from '../db.js'
 import authMiddleware from '../middleware/auth.js'
+import { validateCollectionName, validateCollectionDescription } from '../validate.js'
 
 const router = express.Router()
 
@@ -171,9 +172,11 @@ router.get('/', authMiddleware, async (req, res) => {
 router.post('/', authMiddleware, async (req, res) => {
   const { name, description, visibility } = req.body ?? {}
 
-  if (typeof name !== 'string' || !name.trim()) {
-    return res.status(400).json({ message: 'Nepieciešams kolekcijas nosaukums' })
-  }
+  const nameError = validateCollectionName(name)
+  if (nameError) return res.status(400).json({ message: nameError })
+
+  const descError = validateCollectionDescription(description)
+  if (descError) return res.status(400).json({ message: descError })
 
   const normalizedName = name.trim()
   const normalizedVisibility = normalizeVisibility(visibility)
@@ -215,12 +218,14 @@ router.put('/:id', authMiddleware, async (req, res) => {
   }
 
   const updates = {}
-  if (typeof req.body?.name === 'string') {
-    const trimmed = req.body.name.trim()
-    if (!trimmed) return res.status(400).json({ message: 'Nosaukums nevar būt tukšs' })
-    updates.name = trimmed
+  if (typeof req.body?.name !== 'undefined') {
+    const nameError = validateCollectionName(req.body.name)
+    if (nameError) return res.status(400).json({ message: nameError })
+    updates.name = req.body.name.trim()
   }
   if (typeof req.body?.description !== 'undefined') {
+    const descError = validateCollectionDescription(req.body.description)
+    if (descError) return res.status(400).json({ message: descError })
     updates.description =
       typeof req.body.description === 'string' && req.body.description.trim()
         ? req.body.description.trim()

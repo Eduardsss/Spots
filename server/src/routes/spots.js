@@ -2,6 +2,15 @@ import express from 'express'
 import jwt from 'jsonwebtoken'
 import { supabase } from '../db.js'
 import authMiddleware from '../middleware/auth.js'
+import {
+  validateSpotName,
+  validateDescription,
+  validateLat,
+  validateLng,
+  validateStatus,
+  validateTagName,
+  validateComment,
+} from '../validate.js'
 
 const router = express.Router()
 
@@ -272,13 +281,41 @@ router.post('/', authMiddleware, async (req, res) => {
   try {
     const { name, description, lat, lng, status, image, images, tags } = req.body ?? {}
 
-    if (!name || lat === undefined || lng === undefined) {
-      return res.status(400).json({ message: 'name, lat and lng are required' })
+    const nameError = validateSpotName(name)
+    if (nameError) return res.status(400).json({ message: nameError })
+
+    const descError = validateDescription(description)
+    if (descError) return res.status(400).json({ message: descError })
+
+    const latError = validateLat(lat)
+    if (latError) return res.status(400).json({ message: latError })
+
+    const lngError = validateLng(lng)
+    if (lngError) return res.status(400).json({ message: lngError })
+
+    if (status != null) {
+      const statusError = validateStatus(status)
+      if (statusError) return res.status(400).json({ message: statusError })
+    }
+
+    if (images != null && !Array.isArray(images)) {
+      return res.status(400).json({ message: 'Images must be an array' })
+    }
+    if (tags != null && !Array.isArray(tags)) {
+      return res.status(400).json({ message: 'Tags must be an array' })
     }
 
     const { data: spot, error } = await supabase
       .from('spots')
-      .insert({ user_id: req.user.id, name, description: description || null, lat, lng, status: status || 'public', image: image || null })
+      .insert({
+        user_id: req.user.id,
+        name: name.trim(),
+        description: typeof description === 'string' && description.trim() ? description.trim() : null,
+        lat: Number(lat),
+        lng: Number(lng),
+        status: status || 'public',
+        image: image || null,
+      })
       .select('id')
       .single()
 
@@ -292,6 +329,8 @@ router.post('/', authMiddleware, async (req, res) => {
 
     if (Array.isArray(tags) && tags.length > 0) {
       for (const tagName of tags.slice(0, 10)) {
+        const tagError = validateTagName(tagName)
+        if (tagError) continue
         const normalized = tagName.trim().toLowerCase()
         if (!normalized) continue
         let { data: tag } = await supabase.from('tags').select('id').eq('name', normalized).single()
@@ -341,9 +380,22 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     const { name, description, status, image, images, tags } = req.body ?? {}
     const updates = {}
-    if (typeof name === 'string') updates.name = name
-    if (typeof description !== 'undefined') updates.description = description || null
-    if (typeof status === 'string') updates.status = status
+
+    if (typeof name !== 'undefined') {
+      const nameError = validateSpotName(name)
+      if (nameError) return res.status(400).json({ message: nameError })
+      updates.name = name.trim()
+    }
+    if (typeof description !== 'undefined') {
+      const descError = validateDescription(description)
+      if (descError) return res.status(400).json({ message: descError })
+      updates.description = typeof description === 'string' && description.trim() ? description.trim() : null
+    }
+    if (typeof status !== 'undefined') {
+      const statusError = validateStatus(status)
+      if (statusError) return res.status(400).json({ message: statusError })
+      updates.status = status
+    }
     if (typeof image !== 'undefined') updates.image = image || null
 
     if (Object.keys(updates).length > 0) {
@@ -362,6 +414,8 @@ router.put('/:id', authMiddleware, async (req, res) => {
     if (Array.isArray(tags)) {
       await supabase.from('spot_tags').delete().eq('spot_id', spotId)
       for (const tagName of tags.slice(0, 10)) {
+        const tagError = validateTagName(tagName)
+        if (tagError) continue
         const normalized = tagName.trim().toLowerCase()
         if (!normalized) continue
         let { data: tag } = await supabase.from('tags').select('id').eq('name', normalized).single()
@@ -512,9 +566,8 @@ router.post('/:id/comments', authMiddleware, async (req, res) => {
   if (Number.isNaN(spotId)) return res.status(400).json({ message: 'Invalid spot ID' })
 
   const { content } = req.body ?? {}
-  if (typeof content !== 'string' || !content.trim()) {
-    return res.status(400).json({ message: 'Content is required' })
-  }
+  const commentError = validateComment(content)
+  if (commentError) return res.status(400).json({ message: commentError })
 
   try {
     const { data, error } = await supabase

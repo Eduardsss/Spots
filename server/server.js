@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import spotsRouter from './src/routes/spots.js'
@@ -6,6 +7,13 @@ import usersRouter from './src/routes/users.js'
 import collectionsRouter from './src/routes/collections.js'
 import adminRouter from './src/routes/admin.js'
 import reportsRouter from './src/routes/reports.js'
+
+const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET']
+const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key])
+if (missingEnv.length > 0) {
+  console.error(`KĻŪDA: Trūkst obligāto vides mainīgo: ${missingEnv.join(', ')}`)
+  process.exit(1)
+}
 
 const app = express()
 

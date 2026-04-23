@@ -1,6 +1,7 @@
 import express from 'express'
 import { supabase } from '../db.js'
 import authMiddleware from '../middleware/auth.js'
+import { validateUsername, validateProfileImage } from '../validate.js'
 
 const router = express.Router()
 
@@ -13,16 +14,21 @@ router.put('/me', authMiddleware, async (req, res) => {
       .json({ message: 'At least one field (username or profile_image) is required' })
   }
 
+  let normalizedUsername
+
+  if (typeof username !== 'undefined') {
+    const usernameError = validateUsername(username)
+    if (usernameError) return res.status(400).json({ message: usernameError })
+    normalizedUsername = username.trim()
+  }
+
+  if (typeof profile_image !== 'undefined') {
+    const imageError = validateProfileImage(profile_image)
+    if (imageError) return res.status(400).json({ message: imageError })
+  }
+
   try {
-    let normalizedUsername
-
-    if (typeof username !== 'undefined') {
-      normalizedUsername = username.trim()
-
-      if (!normalizedUsername) {
-        return res.status(400).json({ message: 'Username cannot be empty' })
-      }
-
+    if (typeof normalizedUsername !== 'undefined') {
       const { data: existingUsers } = await supabase
         .from('users')
         .select('id')
@@ -31,17 +37,13 @@ router.put('/me', authMiddleware, async (req, res) => {
         .limit(1)
 
       if (existingUsers && existingUsers.length > 0) {
-        return res.status(409).json({ message: 'Username already taken' })
+        return res.status(409).json({ message: 'Šāds lietotājvārds jau ir aizņemts' })
       }
     }
 
     const updates = {}
-    if (typeof username !== 'undefined') updates.username = normalizedUsername
+    if (typeof normalizedUsername !== 'undefined') updates.username = normalizedUsername
     if (typeof profile_image !== 'undefined') updates.profile_image = profile_image || null
-
-    if (Object.keys(updates).length === 0) {
-      return res.status(400).json({ message: 'No valid fields provided for update' })
-    }
 
     const { error: updateError } = await supabase
       .from('users')
