@@ -94,6 +94,20 @@ router.post('/login', async (req, res) => {
   }
 })
 
+router.post('/logout', authMiddleware, async (req, res) => {
+  try {
+    await supabase
+      .from('users')
+      .update({ last_logout_at: new Date().toISOString() })
+      .eq('id', req.user.id)
+
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Error during logout', error)
+    return res.status(500).json({ message: 'Failed to logout' })
+  }
+})
+
 router.get('/me', authMiddleware, async (req, res) => {
   try {
     const { data: users, error } = await supabase

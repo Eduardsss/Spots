@@ -29,7 +29,7 @@ const optionalAuth = (req, res, next) => {
   return next()
 }
 
-const mapSpot = (s, likedSet = new Set(), visitedSet = new Set()) => ({
+const mapSpot = (s, likedSet = new Set(), visitedMap = new Map()) => ({
   id: s.id,
   user_id: s.user_id,
   name: s.name,
@@ -42,7 +42,8 @@ const mapSpot = (s, likedSet = new Set(), visitedSet = new Set()) => ({
   created_at: s.created_at,
   likesCount: s.spot_likes?.[0]?.count ?? 0,
   likedByCurrentUser: likedSet.has(s.id),
-  visitedByCurrentUser: visitedSet.has(s.id),
+  visitedByCurrentUser: visitedMap.has(s.id),
+  visitedAt: visitedMap.get(s.id) ?? null,
   owner: {
     id: s.user_id,
     username: s.users?.username ?? null,
@@ -213,18 +214,18 @@ router.get('/nearby', optionalAuth, async (req, res) => {
     })
 
     const likedSet = new Set()
-    const visitedSet = new Set()
+    const visitedMap = new Map()
     if (req.user && nearby.length > 0) {
       const ids = nearby.map((s) => s.id)
       const [{ data: likedRows }, { data: visitedRows }] = await Promise.all([
         supabase.from('spot_likes').select('spot_id').eq('user_id', req.user.id).in('spot_id', ids),
-        supabase.from('spot_visits').select('spot_id').eq('user_id', req.user.id).in('spot_id', ids),
+        supabase.from('spot_visits').select('spot_id, visited_at').eq('user_id', req.user.id).in('spot_id', ids),
       ])
       for (const r of likedRows ?? []) likedSet.add(r.spot_id)
-      for (const r of visitedRows ?? []) visitedSet.add(r.spot_id)
+      for (const r of visitedRows ?? []) visitedMap.set(r.spot_id, r.visited_at)
     }
 
-    return res.json({ spots: nearby.map((s) => mapSpot(s, likedSet, visitedSet)) })
+    return res.json({ spots: nearby.map((s) => mapSpot(s, likedSet, visitedMap)) })
   } catch (err) {
     console.error(err)
     return res.status(500).json({ error: err.message })
@@ -234,7 +235,7 @@ router.get('/nearby', optionalAuth, async (req, res) => {
 // GET /spots
 router.get('/', optionalAuth, async (req, res) => {
   try {
-    const statusFilter = req.query.status
+    const { status, visibility, ownerId, tag } = req.query
 
     let query = supabase
       .from('spots')
@@ -247,29 +248,62 @@ router.get('/', optionalAuth, async (req, res) => {
       `)
       .order('created_at', { ascending: false })
 
-    if (statusFilter === 'mine') {
+    if (status === 'mine') {
       if (!req.user) return res.status(401).json({ message: 'Authentication required' })
       query = query.eq('user_id', req.user.id)
+    } else if (visibility === 'private') {
+      if (!req.user) return res.status(401).json({ message: 'Authentication required' })
+      query = query.eq('status', 'private').eq('user_id', req.user.id)
     } else {
       query = query.eq('status', 'public')
+    }
+
+    if (ownerId) {
+      const ownerNum = Number(ownerId)
+      if (!Number.isNaN(ownerNum) && ownerNum > 0) {
+        query = query.eq('user_id', ownerNum)
+      }
+    }
+
+    if (tag) {
+      const normalizedTag = tag.trim().toLowerCase()
+      if (normalizedTag) {
+        const { data: tagData } = await supabase
+          .from('tags')
+          .select('id')
+          .eq('name', normalizedTag)
+          .single()
+
+        if (!tagData) return res.json({ spots: [] })
+
+        const { data: taggedSpots } = await supabase
+          .from('spot_tags')
+          .select('spot_id')
+          .eq('tag_id', tagData.id)
+
+        const taggedIds = (taggedSpots ?? []).map((r) => r.spot_id)
+        if (taggedIds.length === 0) return res.json({ spots: [] })
+
+        query = query.in('id', taggedIds)
+      }
     }
 
     const { data: spots, error } = await query
     if (error) throw error
 
     const likedSet = new Set()
-    const visitedSet = new Set()
+    const visitedMap = new Map()
     if (req.user && spots && spots.length > 0) {
       const ids = spots.map((s) => s.id)
       const [{ data: likedRows }, { data: visitedRows }] = await Promise.all([
         supabase.from('spot_likes').select('spot_id').eq('user_id', req.user.id).in('spot_id', ids),
-        supabase.from('spot_visits').select('spot_id').eq('user_id', req.user.id).in('spot_id', ids),
+        supabase.from('spot_visits').select('spot_id, visited_at').eq('user_id', req.user.id).in('spot_id', ids),
       ])
       for (const r of likedRows ?? []) likedSet.add(r.spot_id)
-      for (const r of visitedRows ?? []) visitedSet.add(r.spot_id)
+      for (const r of visitedRows ?? []) visitedMap.set(r.spot_id, r.visited_at)
     }
 
-    return res.json({ spots: (spots ?? []).map((s) => mapSpot(s, likedSet, visitedSet)) })
+    return res.json({ spots: (spots ?? []).map((s) => mapSpot(s, likedSet, visitedMap)) })
   } catch (err) {
     console.error(err)
     return res.status(500).json({ error: err.message })
@@ -507,7 +541,7 @@ router.post('/:id/visit', authMiddleware, async (req, res) => {
       { spot_id: spotId, user_id: req.user.id, visited_at: now },
       { onConflict: 'spot_id,user_id' }
     )
-    return res.json({ success: true, visitedAt: now })
+    return res.json({ success: true, visited: true, visitedAt: now })
   } catch (err) {
     console.error(err)
     return res.status(500).json({ error: err.message })
@@ -520,7 +554,7 @@ router.delete('/:id/visit', authMiddleware, async (req, res) => {
   if (Number.isNaN(spotId)) return res.status(400).json({ message: 'Invalid spot ID' })
   try {
     await supabase.from('spot_visits').delete().eq('spot_id', spotId).eq('user_id', req.user.id)
-    return res.json({ success: true })
+    return res.json({ success: true, visited: false })
   } catch (err) {
     console.error(err)
     return res.status(500).json({ error: err.message })

@@ -1,5 +1,8 @@
 -- Spotz datubāzes shēma (PostgreSQL / Supabase)
 -- Izpildi šo Supabase → SQL Editor → New query
+--
+-- Ja datubāze jau eksistē un ir nepieciešams pievienot jaunu kolonnu:
+--   ALTER TABLE users ADD COLUMN IF NOT EXISTS last_logout_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
@@ -7,6 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash VARCHAR(255) NOT NULL,
   profile_image TEXT,
   role VARCHAR(10) NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+  last_logout_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

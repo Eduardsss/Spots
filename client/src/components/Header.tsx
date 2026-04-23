@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import ProfilePopup from './ProfilePopup';
+import { apiFetch } from '../lib/api';
 import { palette, radii, transitions } from '../styles/theme';
 
 type AuthUser = {
@@ -87,7 +88,12 @@ export default function Header() {
     { path: '/collections', label: 'Kolekcijas' },
   ], []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await apiFetch('/auth/logout', { method: 'POST' });
+    } catch {
+      // Turpinām izrakstīšanos arī tad, ja servera pieprasījums neizdodas.
+    }
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('token');
       window.localStorage.removeItem('user');
