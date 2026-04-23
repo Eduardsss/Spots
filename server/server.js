@@ -7,6 +7,7 @@ import usersRouter from './src/routes/users.js'
 import collectionsRouter from './src/routes/collections.js'
 import adminRouter from './src/routes/admin.js'
 import reportsRouter from './src/routes/reports.js'
+import { errorHandler } from './src/middleware/errorHandler.js'
 
 const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET']
 const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key])
@@ -44,6 +45,8 @@ app.use('/users', usersRouter)
 app.use('/collections', collectionsRouter)
 app.use('/admin', adminRouter)
 app.use('/reports', reportsRouter)
+
+app.use(errorHandler)
 
 const port = process.env.PORT || 3000
 app.listen(port, () => console.log(`Server running on port ${port}`))
