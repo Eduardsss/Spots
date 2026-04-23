@@ -222,44 +222,7 @@ button:disabled {
 }
 
 .gm-style .gm-ui-hover-effect {
-  top: 10px !important;
-  right: 10px !important;
-  border-radius: var(--radius-pill) !important;
-  background: rgba(15, 23, 42, 0.12) !important;
-  box-shadow: none !important;
-  width: 32px !important;
-  height: 32px !important;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  transition: background var(--transition-fast), transform var(--transition-fast);
-  color: var(--color-text-primary) !important;
-}
-
-.gm-style .gm-ui-hover-effect::before {
-  content: '✕';
-  font-size: 16px;
-  line-height: 1;
-  font-weight: 600;
-}
-
-.gm-style .gm-ui-hover-effect:hover {
-  background: rgba(15, 23, 42, 0.18) !important;
-  transform: translateY(-1px);
-}
-
-.gm-style .gm-ui-hover-effect span,
-.gm-style .gm-ui-hover-effect img {
   display: none !important;
-}
-
-[data-theme='dark'] .gm-style .gm-ui-hover-effect {
-  background: rgba(15, 23, 42, 0.6) !important;
-  color: var(--accent-contrast) !important;
-}
-
-[data-theme='dark'] .gm-style .gm-ui-hover-effect::before {
-  color: var(--accent-contrast);
 }
 
 .spotz-card:hover {

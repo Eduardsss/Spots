@@ -1476,77 +1476,111 @@ export default function MapPage() {
         <div
           className="spotz-card"
           style={{
-            maxWidth: '300px',
-            maxHeight: '70vh',
+            width: '320px',
+            maxHeight: '72vh',
             overflowY: 'auto',
-            padding: '18px',
+            overscrollBehavior: 'contain',
+            padding: '0',
             display: 'flex',
             flexDirection: 'column',
-            gap: '14px',
             borderRadius: radii.lg,
             position: 'relative',
+            background: 'var(--surface-color)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div
+          {/* Header with name + close button */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: '10px',
+            padding: '16px 16px 0',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: radii.md,
+                  overflow: 'hidden',
+                  background: palette.accentGradientSoft,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 700,
+                  color: palette.accentStrong,
+                  flexShrink: 0,
+                }}
+              >
+                {selectedSpot.owner.profile_image ? (
+                  <img
+                    src={selectedSpot.owner.profile_image}
+                    alt={selectedSpot.owner.username}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  selectedSpot.owner.username.slice(0, 1).toUpperCase()
+                )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: palette.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedSpot.name}</h3>
+                  <span
+                    style={{
+                      padding: '1px 7px',
+                      borderRadius: radii.pill,
+                      background: selectedSpot.status === 'public' ? palette.accentGradientSoft : 'linear-gradient(135deg, rgba(124, 58, 237, 0.16), rgba(168, 85, 247, 0.24))',
+                      color: selectedSpot.status === 'public' ? palette.accentStrong : palette.textSecondary,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {selectedSpot.status === 'public' ? 'Publisks' : 'Privāts'}
+                  </span>
+              </div>
+            </div>
+
+            {/* Close button inside the card */}
+            <button
+              type="button"
+              onClick={() => setSelectedSpotId(null)}
               style={{
-                width: '46px',
-                height: '46px',
-                borderRadius: radii.md,
-                overflow: 'hidden',
-                background: palette.accentGradientSoft,
+                flexShrink: 0,
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                border: `1px solid ${palette.border}`,
+                background: palette.surfaceAlt,
+                color: palette.textSecondary,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontWeight: 700,
-                color: palette.accentStrong,
-                flexShrink: 0,
+                fontSize: 16,
+                cursor: 'pointer',
+                lineHeight: 1,
               }}
+              aria-label="Aizvērt"
             >
-              {selectedSpot.owner.profile_image ? (
-                <img
-                  src={selectedSpot.owner.profile_image}
-                  alt={selectedSpot.owner.username}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                selectedSpot.owner.username.slice(0, 1).toUpperCase()
-              )}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', color: palette.textPrimary }}>{selectedSpot.name}</h3>
-              <span style={{ fontSize: '13px', color: palette.textMuted }}>
-                Dalījās {selectedSpot.owner.username} ·{' '}
-                <span
-                  style={{
-                    padding: '2px 8px',
-                    borderRadius: radii.pill,
-                    background:
-                      selectedSpot.status === 'public'
-                        ? palette.accentGradientSoft
-                        : 'linear-gradient(135deg, rgba(124, 58, 237, 0.16), rgba(168, 85, 247, 0.24))',
-                    color: selectedSpot.status === 'public' ? palette.accentStrong : palette.textSecondary,
-                    fontWeight: 600,
-                  }}
-                >
-                  {selectedSpot.status === 'public' ? 'Publisks' : 'Privāts'}
-                </span>
-              </span>
-            </div>
+              ✕
+            </button>
           </div>
 
+          {/* Gallery */}
           {galleryImages.length ? (
-            <SpotGallery images={galleryImages} title={selectedSpot.name} height={180} />
+            <div style={{ marginTop: '12px' }}>
+              <SpotGallery images={galleryImages} title={selectedSpot.name} height={180} />
+            </div>
           ) : null}
 
+          {/* Body content */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px 16px 16px' }}>
+
           {selectedSpot.description ? (
-            <p style={{ margin: 0, color: palette.textSecondary, fontSize: '14px', lineHeight: 1.5 }}>
+            <p style={{ margin: 0, color: palette.textSecondary, fontSize: '13px', lineHeight: 1.6 }}>
               {selectedSpot.description}
             </p>
           ) : null}
 
           {selectedSpot.tags.length ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
               {selectedSpot.tags.map((tag) => (
                 <span
                   key={tag}
@@ -1555,6 +1589,8 @@ export default function MapPage() {
                     background: palette.surfaceAlt,
                     color: palette.accentStrong,
                     border: `1px solid ${palette.border}`,
+                    fontSize: '12px',
+                    padding: '4px 10px',
                   }}
                 >
                   {tag}
@@ -1743,6 +1779,7 @@ export default function MapPage() {
               />
             </div>
           ) : null}
+          </div>
         </div>
       </InfoWindow>
     );
