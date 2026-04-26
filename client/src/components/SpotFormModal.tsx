@@ -106,7 +106,9 @@ export function SpotFormModal({
     setStatus(initialValues.status);
     setGalleryState({ previews: [...initialValues.images], changed: false });
     setTags([...initialValues.tags]);
-  }, [initialValues, open]);
+    setImageError('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]); // tikai kad modālis atveras — ne uz katru render
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
