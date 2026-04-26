@@ -39,11 +39,13 @@ function resolveUrl(path: string): string {
   return `${base}${suffix}`
 }
 
+const DEFAULT_TIMEOUT_MS = 60_000;
+
 export async function apiFetch<T = unknown>(
   path: string,
-  options: ApiFetchOptions = {}
+  options: ApiFetchOptions & { timeoutMs?: number } = {}
 ): Promise<T> {
-  const { headers: headersInit, body, ...rest } = options
+  const { headers: headersInit, body, timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = options
   const headers = new Headers(headersInit ?? {})
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
@@ -68,25 +70,41 @@ export async function apiFetch<T = unknown>(
     requestBody = body as BodyInit
   }
 
-  const response = await fetch(url, {
-    ...rest,
-    headers,
-    body: requestBody
-  })
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...rest,
+      headers,
+      body: requestBody,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('Pieprasījums pārsniedza laika ierobežojumu. Pārbaudi interneta savienojumu un mēģini vēlreiz.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 
   const contentType = response.headers.get('Content-Type') ?? ''
   const isJson = contentType.includes('application/json')
   const data = isJson ? await response.json() : await response.text()
 
   if (!response.ok) {
-    const error = new Error(
-      typeof data === 'string' && data ? data : 'Request failed'
-    )
+    const message =
+      typeof data === 'string' && data
+        ? data
+        : (data as { message?: string })?.message ?? 'Request failed';
+    const error = new Error(message);
     throw Object.assign(error, {
       status: response.status,
       statusText: response.statusText,
-      body: data
-    })
+      body: data,
+    });
   }
 
   return data as T

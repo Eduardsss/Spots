@@ -750,6 +750,7 @@ export default function MapPage() {
       const response = await apiFetch<CreateSpotResponse>('/spots', {
         method: 'POST',
         body,
+        timeoutMs: 120_000,
       });
 
       const createdSpot = {
@@ -811,6 +812,7 @@ export default function MapPage() {
       const response = await apiFetch<UpdateSpotResponse>(`/spots/${target.id}`, {
         method: 'PUT',
         body: updates,
+        timeoutMs: 120_000,
       });
 
       const updatedSpot = {
