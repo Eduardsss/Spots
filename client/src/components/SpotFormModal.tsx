@@ -17,13 +17,37 @@ export type SpotFormSubmission = SpotFormValues & {
   imagesChanged: boolean;
 };
 
-function fileToBase64(file: File): Promise<string> {
+const MAX_IMAGE_DIMENSION = 1920;
+const IMAGE_QUALITY = 0.82;
+
+function compressImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => {
-      resolve(typeof reader.result === 'string' ? reader.result : '');
-    };
     reader.onerror = () => reject(reader.error ?? new Error('Neizdevās nolasīt failu'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Neizdevās ielādēt attēlu'));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+          if (width >= height) {
+            height = Math.round((height * MAX_IMAGE_DIMENSION) / width);
+            width = MAX_IMAGE_DIMENSION;
+          } else {
+            width = Math.round((width * MAX_IMAGE_DIMENSION) / height);
+            height = MAX_IMAGE_DIMENSION;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Canvas not supported')); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', IMAGE_QUALITY));
+      };
+      img.src = typeof reader.result === 'string' ? reader.result : '';
+    };
     reader.readAsDataURL(file);
   });
 }
@@ -76,7 +100,7 @@ export function SpotFormModal({
     const files = Array.from(event.target.files ?? []);
     if (!files.length) return;
     try {
-      const base64List = await Promise.all(files.map((file) => fileToBase64(file)));
+      const base64List = await Promise.all(files.map((file) => compressImage(file)));
       setGalleryState((current) => {
         const combined = [...current.previews, ...base64List];
         return { previews: combined.slice(0, 6), changed: true };
