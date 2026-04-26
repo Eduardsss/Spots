@@ -1,8 +1,8 @@
-import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SpotGallery } from '../components/SpotGallery';
 import SaveToCollectionModal from '../components/SaveToCollectionModal';
-import { TagInput } from '../components/TagInput';
+import { SpotFormModal, type SpotFormValues, type SpotFormSubmission } from '../components/SpotFormModal';
 import { apiFetch } from '../lib/api';
 import { areTagListsEqual, mergeTagLists, MAX_TAGS_PER_SPOT } from '../lib/tags';
 import { palette, radii, shadows } from '../styles/theme';
@@ -26,345 +26,9 @@ type SpotsResponse = {
   spots: Spot[];
 };
 
-type SpotFormValues = {
-  name: string;
-  description: string;
-  status: 'public' | 'private';
-  image: string | null;
-  images: string[];
-  tags: string[];
-};
-
-type SpotFormSubmission = SpotFormValues & {
-  imagesChanged: boolean;
-};
-
 type TagsResponse = {
   tags: string[];
 };
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      resolve(typeof reader.result === 'string' ? reader.result : '');
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('Neizdevās nolasīt failu'));
-    reader.readAsDataURL(file);
-  });
-}
-
-// Modālais logs spotu rediģēšanai ar galerijas un tagu pārvaldību.
-function EditSpotModal({
-  open,
-  spot,
-  onClose,
-  onSubmit,
-  submitting,
-  error,
-  availableTags,
-  maxTags,
-}: {
-  open: boolean;
-  spot: Spot | null;
-  onClose: () => void;
-  onSubmit: (values: SpotFormSubmission) => void;
-  submitting: boolean;
-  error: string | null;
-  availableTags: string[];
-  maxTags?: number;
-}) {
-  // Glabājam formā ievadītās vērtības, lai tās varētu iesniegt API.
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [status, setStatus] = useState<'public' | 'private'>('public');
-  const [galleryState, setGalleryState] = useState<{
-    previews: string[];
-    changed: boolean;
-  }>({ previews: [], changed: false });
-  const [tags, setTags] = useState<string[]>([]);
-  const tagLimit = maxTags ?? MAX_TAGS_PER_SPOT;
-
-  useEffect(() => {
-    if (!open || !spot) {
-      return;
-    }
-
-    setName(spot.name);
-    setDescription(spot.description ?? '');
-    setStatus(spot.status);
-    const images = Array.isArray(spot.images) && spot.images.length
-      ? [...spot.images]
-      : spot.image
-      ? [spot.image]
-      : [];
-    setGalleryState({ previews: images, changed: false });
-    setTags([...(spot.tags ?? [])]);
-  }, [open, spot]);
-
-  if (!open || !spot) {
-    return null;
-  }
-
-  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-
-    if (!files.length) {
-      return;
-    }
-
-    try {
-      const base64List = await Promise.all(files.map((file) => fileToBase64(file)));
-      setGalleryState((current) => {
-        const combined = [...current.previews, ...base64List];
-        const limited = combined.slice(0, 6);
-        return { previews: limited, changed: true };
-      });
-    } catch (err) {
-      console.error('Failed to convert image', err);
-    }
-  };
-
-  const handleRemoveImage = (index: number) => {
-    setGalleryState((current) => {
-      const next = current.previews.filter((_, i) => i !== index);
-      return { previews: next, changed: true };
-    });
-  };
-
-  const handleClearImages = () => {
-    setGalleryState({ previews: [], changed: true });
-  };
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    onSubmit({
-      name: name.trim(),
-      description,
-      status,
-      image: galleryState.previews[0] ?? null,
-      images: galleryState.previews,
-      tags,
-      imagesChanged: galleryState.changed,
-    });
-  };
-
-  return (
-    // Modālis tiek parādīts virs lapas, kad lietotājs rediģē izvēlēto spotu.
-    <div className="spotz-modal-overlay" role="dialog" aria-modal="true">
-      <div className="spotz-modal" style={{ width: 'min(600px, 100%)' }}>
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '24px', color: palette.textPrimary }}>Rediģēt spotu</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="spotz-btn spotz-btn--ghost"
-            style={{ padding: '6px 12px', borderRadius: radii.pill }}
-            aria-label="Aizvērt"
-          >
-            ×
-          </button>
-        </header>
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Nosaukums</span>
-            <input
-              required
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              className="spotz-input"
-            />
-          </label>
-
-          <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Apraksts</span>
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={4}
-              className="spotz-input"
-              style={{ resize: 'vertical' }}
-            />
-          </label>
-
-          <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Statuss</span>
-            <select
-              value={status}
-              onChange={(event) => setStatus(event.target.value as 'public' | 'private')}
-              className="spotz-input"
-              style={{ appearance: 'none' }}
-            >
-              <option value="public">Publisks</option>
-              <option value="private">Privāts</option>
-            </select>
-          </label>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Tagi</span>
-            <TagInput
-              value={tags}
-              onChange={setTags}
-              suggestions={availableTags}
-              maxTags={tagLimit}
-              placeholder="Pievieno tagus, piemēram, #saullēkts"
-            />
-            <span style={{ fontSize: '12px', color: palette.textMuted }}>
-              Var pievienot līdz {tagLimit} tagiem, lai aprakstītu šo spotu.
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <span style={{ fontWeight: 600, color: palette.textPrimary }}>Fotogrāfijas</span>
-            {galleryState.previews.length ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div
-                  style={{
-                    borderRadius: radii.md,
-                    overflow: 'hidden',
-                    boxShadow: shadows.soft,
-                    border: `1px solid ${palette.border}`,
-                  }}
-                >
-                  <img
-                    src={galleryState.previews[0]}
-                    alt={spot.name}
-                    style={{ width: '100%', maxHeight: '240px', objectFit: 'cover', display: 'block' }}
-                  />
-                </div>
-
-                {galleryState.previews.length > 1 ? (
-                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    {galleryState.previews.map((preview, index) => (
-                      <div
-                        key={`${preview}-${index}`}
-                        style={{
-                          position: 'relative',
-                          width: 88,
-                          height: 88,
-                          borderRadius: radii.md,
-                          overflow: 'hidden',
-                          boxShadow: shadows.soft,
-                          border: `1px solid ${palette.border}`,
-                        }}
-                      >
-                        <img
-                          src={preview}
-                          alt={`Attēls ${index + 1}`}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(index)}
-                          className="spotz-btn spotz-btn--ghost"
-                          style={{
-                            position: 'absolute',
-                            top: 4,
-                            right: 4,
-                            padding: '4px 6px',
-                            borderRadius: radii.pill,
-                            background: 'rgba(15, 23, 42, 0.6)',
-                            color: 'white',
-                            fontSize: '12px',
-                          }}
-                        >
-                          ×
-                        </button>
-                        {index === 0 ? (
-                          <span
-                            style={{
-                              position: 'absolute',
-                              bottom: 4,
-                              left: 4,
-                              padding: '2px 6px',
-                              borderRadius: radii.pill,
-                              background: 'rgba(15, 23, 42, 0.6)',
-                              color: 'white',
-                              fontSize: '11px',
-                              letterSpacing: '0.04em',
-                            }}
-                          >
-                            Galvenais
-                          </span>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <div
-                style={{
-                  minHeight: 120,
-                  borderRadius: radii.md,
-                  border: `1px dashed ${palette.border}`,
-                  background: palette.surfaceAlt,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: palette.textMuted,
-                }}
-              >
-                Vēl nav pievienotu attēlu.
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <label className="spotz-btn spotz-btn--outline" style={{ padding: '10px 18px' }}>
-                Pievienot attēlus
-                <input type="file" accept="image/*" multiple onChange={handleFileChange} style={{ display: 'none' }} />
-              </label>
-              <button
-                type="button"
-                onClick={handleClearImages}
-                className="spotz-btn spotz-btn--ghost"
-                style={{ padding: '10px 18px', borderRadius: radii.md }}
-                disabled={!galleryState.previews.length}
-              >
-                Noņemt visus
-              </button>
-            </div>
-          </div>
-
-          {error ? (
-            <div
-              role="alert"
-              style={{
-                padding: '12px 16px',
-                borderRadius: radii.md,
-                background: palette.dangerSoft,
-                color: palette.danger,
-                fontWeight: 600,
-              }}
-            >
-              {error}
-            </div>
-          ) : null}
-
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              className="spotz-btn spotz-btn--ghost"
-              style={{ padding: '10px 20px', borderRadius: radii.md }}
-            >
-              Atcelt
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="spotz-btn spotz-btn--primary"
-              style={{ padding: '12px 24px', borderRadius: radii.md }}
-            >
-              {submitting ? 'Saglabājam…' : 'Saglabāt izmaiņas'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 // Atsevišķa kartīte, kas attēlo vienu no lietotāja spotiem ar darbības pogām.
 function SpotCard({
@@ -616,7 +280,6 @@ export default function MySpotsPage() {
       };
 
       if (values.imagesChanged) {
-        payload.image = values.image;
         payload.images = values.images;
       }
 
@@ -628,6 +291,7 @@ export default function MySpotsPage() {
         const data = await apiFetch<{ spot: Spot }>(`/spots/${editingSpot.id}`, {
           method: 'PUT',
           body: payload,
+          timeoutMs: 120_000,
         });
 
         setSpots((current) =>
@@ -754,13 +418,24 @@ export default function MySpotsPage() {
         }}
       />
 
-      <EditSpotModal
+      <SpotFormModal
+        title="Rediģēt spotu"
         open={Boolean(editingSpot)}
-        spot={editingSpot}
         onClose={() => setEditingSpot(null)}
         onSubmit={handleSubmitEdit}
+        initialValues={editingSpot ? {
+          name: editingSpot.name,
+          description: editingSpot.description ?? '',
+          status: editingSpot.status,
+          image: editingSpot.image,
+          images: Array.isArray(editingSpot.images) && editingSpot.images.length
+            ? [...editingSpot.images]
+            : editingSpot.image ? [editingSpot.image] : [],
+          tags: [...(editingSpot.tags ?? [])],
+        } : { name: '', description: '', status: 'public', image: null, images: [], tags: [] }}
         submitting={saving}
-        error={editError}
+        error={editError ?? ''}
+        mode="edit"
         availableTags={availableTags}
         maxTags={MAX_TAGS_PER_SPOT}
       />
