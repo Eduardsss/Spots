@@ -38,7 +38,7 @@ app.use(
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   })
 )
-app.use(express.json({ limit: '10mb' }))
+app.use(express.json({ limit: '20mb' }))
 
 app.get('/health', (_req, res) => res.json({ ok: true }))
 

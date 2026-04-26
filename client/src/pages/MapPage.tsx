@@ -741,7 +741,6 @@ export default function MapPage() {
         name: values.name,
         description: values.description.trim() ? values.description.trim() : null,
         status: values.status,
-        image: values.image ?? null,
         images: values.images,
         lat: formState.position.lat,
         lng: formState.position.lng,
@@ -793,7 +792,6 @@ export default function MapPage() {
     }
 
     if (values.imagesChanged) {
-      updates.image = values.image ?? null;
       updates.images = values.images;
     }
 
