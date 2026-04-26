@@ -85,9 +85,8 @@ export default function App() {
           }
         />
         <Route
-          path="admin/reports"
+          path="admin"
           element={
-            // Admin sadaļā papildus pārbaudām vai lietotājam ir administratora loma.
             <ProtectedRoute requireAdmin>
               <AdminReportsPage />
             </ProtectedRoute>
