@@ -1,8 +1,6 @@
-const DEFAULT_API_BASE_URL = import.meta.env.DEV
-  ? 'http://localhost:3000'
-  : 'https://tavs-backend.vercel.app'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? DEFAULT_API_BASE_URL
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ??
+  (import.meta.env.DEV ? 'http://localhost:3000' : '')
 
 type JsonLike = Record<string, unknown> | Array<unknown>
 
