@@ -1,7 +1,7 @@
 import express from 'express'
-import jwt from 'jsonwebtoken'
 import { supabase } from '../db.js'
 import authMiddleware from '../middleware/auth.js'
+import optionalAuth from '../middleware/optionalAuth.js'
 import { validateCollectionName, validateCollectionDescription } from '../validate.js'
 
 const router = express.Router()
@@ -10,24 +10,6 @@ const MAX_IMAGES_PER_SPOT = 6
 
 const normalizeVisibility = (value) =>
   value === 'public' || value === 'private' ? value : 'private'
-
-const optionalAuth = (req, res, next) => {
-  const authHeader = req.headers.authorization
-  if (!authHeader) return next()
-  if (!authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Invalid authorization header' })
-  }
-  const token = authHeader.substring(7)
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET)
-    const { id, username, role } = decoded
-    if (!id || !username || !role) throw new Error('Invalid token payload')
-    req.user = { id, username, role }
-  } catch {
-    req.user = undefined
-  }
-  return next()
-}
 
 const getCollectionById = async (collectionId) => {
   const { data, error } = await supabase

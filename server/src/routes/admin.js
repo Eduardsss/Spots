@@ -127,6 +127,128 @@ router.get('/moderation/comments', async (_req, res) => {
   }
 })
 
+router.get('/users', async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, role, created_at, profile_image')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return res.json({ users: data ?? [] })
+  } catch (error) {
+    console.error('Error loading users', error)
+    return res.status(500).json({ message: 'Failed to load users' })
+  }
+})
+
+router.patch('/users/:id', async (req, res) => {
+  const userId = Number(req.params.id)
+  if (Number.isNaN(userId) || userId <= 0) {
+    return res.status(400).json({ message: 'Invalid user ID' })
+  }
+
+  if (userId === req.user.id) {
+    return res.status(400).json({ message: 'Cannot change your own role' })
+  }
+
+  const { role } = req.body ?? {}
+  if (role !== 'admin' && role !== 'user') {
+    return res.status(400).json({ message: 'Role must be "admin" or "user"' })
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .update({ role })
+      .eq('id', userId)
+      .select('id, username, role')
+      .single()
+
+    if (error) throw error
+    if (!data) return res.status(404).json({ message: 'User not found' })
+
+    return res.json({ user: data })
+  } catch (error) {
+    console.error('Error updating user role', error)
+    return res.status(500).json({ message: 'Failed to update user role' })
+  }
+})
+
+router.delete('/users/:id', async (req, res) => {
+  const userId = Number(req.params.id)
+  if (Number.isNaN(userId) || userId <= 0) {
+    return res.status(400).json({ message: 'Invalid user ID' })
+  }
+
+  if (userId === req.user.id) {
+    return res.status(400).json({ message: 'Cannot delete your own account' })
+  }
+
+  try {
+    const { error, count } = await supabase
+      .from('users')
+      .delete({ count: 'exact' })
+      .eq('id', userId)
+
+    if (error) throw error
+    if (count === 0) return res.status(404).json({ message: 'User not found' })
+
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Error deleting user', error)
+    return res.status(500).json({ message: 'Failed to delete user' })
+  }
+})
+
+router.get('/spots', async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('spots')
+      .select('id, name, status, created_at, user_id, users!spots_user_id_fkey (username)')
+      .order('created_at', { ascending: false })
+      .limit(200)
+
+    if (error) throw error
+
+    return res.json({
+      spots: (data ?? []).map((s) => ({
+        id: s.id,
+        name: s.name,
+        status: s.status,
+        created_at: s.created_at,
+        user_id: s.user_id,
+        owner: s.users?.username ?? null,
+      })),
+    })
+  } catch (error) {
+    console.error('Error loading admin spots', error)
+    return res.status(500).json({ message: 'Failed to load spots' })
+  }
+})
+
+router.delete('/spots/:id', async (req, res) => {
+  const spotId = Number(req.params.id)
+  if (Number.isNaN(spotId) || spotId <= 0) {
+    return res.status(400).json({ message: 'Invalid spot ID' })
+  }
+
+  try {
+    const { error, count } = await supabase
+      .from('spots')
+      .delete({ count: 'exact' })
+      .eq('id', spotId)
+
+    if (error) throw error
+    if (count === 0) return res.status(404).json({ message: 'Spot not found' })
+
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Error deleting spot', error)
+    return res.status(500).json({ message: 'Failed to delete spot' })
+  }
+})
+
 router.delete('/comments/:id', async (req, res) => {
   const commentId = Number(req.params.id)
   if (Number.isNaN(commentId)) {

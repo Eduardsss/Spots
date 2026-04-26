@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { palette, radii, shadows, transitions } from '../styles/theme';
 
-// Administrācijas panelis moderācijas komandai ar statistiku, ziņojumiem un komentāru rindu.
 type AdminStats = {
   totalUsers: number;
   totalSpots: number;
@@ -84,6 +83,41 @@ type UpdateReportResponse = {
   removed?: boolean;
 };
 
+type AdminUser = {
+  id: number;
+  username: string;
+  role: string;
+  created_at: string;
+  profile_image: string | null;
+};
+
+type AdminUsersResponse = {
+  users: AdminUser[];
+};
+
+type AdminSpot = {
+  id: number;
+  name: string;
+  status: 'public' | 'private';
+  created_at: string;
+  user_id: number;
+  owner: string | null;
+};
+
+type AdminSpotsResponse = {
+  spots: AdminSpot[];
+};
+
+type AdminTab = 'overview' | 'users' | 'spots' | 'reports' | 'moderation';
+
+const TABS: { id: AdminTab; label: string }[] = [
+  { id: 'overview', label: 'Pārskats' },
+  { id: 'users', label: 'Lietotāji' },
+  { id: 'spots', label: 'Spoti' },
+  { id: 'reports', label: 'Ziņojumi' },
+  { id: 'moderation', label: 'Moderācija' },
+];
+
 const sectionCardStyle = {
   borderRadius: radii.xl,
   boxShadow: shadows.medium,
@@ -95,8 +129,30 @@ const sectionCardStyle = {
   gap: '16px',
 } as const;
 
+const innerCardStyle = {
+  padding: '20px',
+  borderRadius: radii.lg,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '12px',
+  border: `1px solid ${palette.border}`,
+} as const;
+
+const rowStyle = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: '12px',
+  flexWrap: 'wrap',
+  padding: '12px 14px',
+  borderRadius: radii.md,
+  border: `1px solid ${palette.border}`,
+  background: palette.surfaceAlt,
+} as const;
+
 export default function AdminReportsPage() {
-  // Saglabājam dažādus datu blokus: statistiku, ziņojumus un komentāru rindu.
+  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+
   const [overview, setOverview] = useState<AdminOverviewResponse | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [overviewError, setOverviewError] = useState('');
@@ -108,6 +164,16 @@ export default function AdminReportsPage() {
   const [moderationQueue, setModerationQueue] = useState<ModerationItem[]>([]);
   const [moderationLoading, setModerationLoading] = useState(true);
   const [moderationError, setModerationError] = useState('');
+
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState('');
+  const [processingUserId, setProcessingUserId] = useState<number | null>(null);
+
+  const [adminSpots, setAdminSpots] = useState<AdminSpot[]>([]);
+  const [adminSpotsLoading, setAdminSpotsLoading] = useState(false);
+  const [adminSpotsError, setAdminSpotsError] = useState('');
+  const [processingSpotId, setProcessingSpotId] = useState<number | null>(null);
 
   const [actionMessage, setActionMessage] = useState('');
   const [processingReportId, setProcessingReportId] = useState<number | null>(null);
@@ -185,11 +251,48 @@ export default function AdminReportsPage() {
     }
   }, []);
 
+  const loadUsers = useCallback(async () => {
+    setUsersLoading(true);
+    setUsersError('');
+    try {
+      const data = await apiFetch<AdminUsersResponse>('/admin/users');
+      setUsers(Array.isArray(data.users) ? data.users : []);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Neizdevās ielādēt lietotājus.';
+      setUsersError(message);
+    } finally {
+      setUsersLoading(false);
+    }
+  }, []);
+
+  const loadAdminSpots = useCallback(async () => {
+    setAdminSpotsLoading(true);
+    setAdminSpotsError('');
+    try {
+      const data = await apiFetch<AdminSpotsResponse>('/admin/spots');
+      setAdminSpots(Array.isArray(data.spots) ? data.spots : []);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Neizdevās ielādēt spotus.';
+      setAdminSpotsError(message);
+    } finally {
+      setAdminSpotsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadOverview();
     loadReports();
     loadModerationQueue();
   }, [loadOverview, loadReports, loadModerationQueue]);
+
+  useEffect(() => {
+    if (activeTab === 'users' && users.length === 0 && !usersLoading) {
+      void loadUsers();
+    }
+    if (activeTab === 'spots' && adminSpots.length === 0 && !adminSpotsLoading) {
+      void loadAdminSpots();
+    }
+  }, [activeTab, users.length, usersLoading, adminSpots.length, adminSpotsLoading, loadUsers, loadAdminSpots]);
 
   useEffect(() => {
     if (!actionMessage) {
@@ -316,7 +419,67 @@ export default function AdminReportsPage() {
     }
   };
 
-  // Administrācijas skatā apvienojam vairākas sadaļas ar kartītēm un tabulām.
+  const handleChangeUserRole = async (userId: number, currentRole: string) => {
+    if (processingUserId !== null) return;
+    const newRole = currentRole === 'admin' ? 'user' : 'admin';
+    setProcessingUserId(userId);
+    try {
+      const data = await apiFetch<{ user: AdminUser }>(`/admin/users/${userId}`, {
+        method: 'PATCH',
+        body: { role: newRole },
+      });
+      setUsers((current) =>
+        current.map((u) => (u.id === userId ? { ...u, role: data.user.role } : u)),
+      );
+      setActionMessage(`Loma mainīta uz "${newRole === 'admin' ? 'Administrators' : 'Lietotājs'}".`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Neizdevās mainīt lomu.';
+      setUsersError(message);
+    } finally {
+      setProcessingUserId(null);
+    }
+  };
+
+  const handleDeleteUser = async (userId: number, username: string) => {
+    if (!window.confirm(`Vai tiešām dzēst lietotāju "${username}"? Šo darbību nevarēs atsaukt.`)) return;
+    if (processingUserId !== null) return;
+    setProcessingUserId(userId);
+    try {
+      await apiFetch(`/admin/users/${userId}`, { method: 'DELETE' });
+      setUsers((current) => current.filter((u) => u.id !== userId));
+      setOverview((current) => {
+        if (!current?.stats) return current;
+        return { ...current, stats: { ...current.stats, totalUsers: Math.max(0, current.stats.totalUsers - 1) } };
+      });
+      setActionMessage(`Lietotājs "${username}" izdzēsts.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Neizdevās dzēst lietotāju.';
+      setUsersError(message);
+    } finally {
+      setProcessingUserId(null);
+    }
+  };
+
+  const handleDeleteAdminSpot = async (spotId: number, spotName: string) => {
+    if (!window.confirm(`Vai tiešām dzēst spotu "${spotName}"? Šo darbību nevarēs atsaukt.`)) return;
+    if (processingSpotId !== null) return;
+    setProcessingSpotId(spotId);
+    try {
+      await apiFetch(`/admin/spots/${spotId}`, { method: 'DELETE' });
+      setAdminSpots((current) => current.filter((s) => s.id !== spotId));
+      setOverview((current) => {
+        if (!current?.stats) return current;
+        return { ...current, stats: { ...current.stats, totalSpots: Math.max(0, current.stats.totalSpots - 1) } };
+      });
+      setActionMessage(`Spots "${spotName}" izdzēsts.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Neizdevās dzēst spotu.';
+      setAdminSpotsError(message);
+    } finally {
+      setProcessingSpotId(null);
+    }
+  };
+
   return (
     <main
       style={{
@@ -331,9 +494,36 @@ export default function AdminReportsPage() {
       <header style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <h1 style={{ margin: 0, fontSize: '32px', color: palette.textPrimary }}>Admin panelis</h1>
         <p style={{ margin: 0, color: palette.textSecondary }}>
-          Platformas pārskats, ziņojumi un komentāru moderācija.
+          Platformas pārvaldība — lietotāji, spoti, ziņojumi un moderācija.
         </p>
       </header>
+
+      <nav style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className="spotz-btn"
+            style={{
+              padding: '10px 20px',
+              borderRadius: radii.pill,
+              border: activeTab === tab.id ? `1px solid ${palette.accent}` : `1px solid ${palette.border}`,
+              background: activeTab === tab.id ? palette.accentGradientSoft : palette.surfaceAlt,
+              color: activeTab === tab.id ? palette.accentStrong : palette.textPrimary,
+              fontWeight: activeTab === tab.id ? 700 : 400,
+              transition: transitions.base,
+            }}
+          >
+            {tab.label}
+            {tab.id === 'reports' && reports.length > 0 ? (
+              <span style={{ marginLeft: '6px', background: palette.danger, color: 'white', borderRadius: radii.pill, padding: '1px 7px', fontSize: '12px' }}>
+                {reports.length}
+              </span>
+            ) : null}
+          </button>
+        ))}
+      </nav>
 
       {actionMessage ? (
         <div
@@ -351,7 +541,7 @@ export default function AdminReportsPage() {
         </div>
       ) : null}
 
-      <section style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {activeTab === 'overview' && <section style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div style={{ ...sectionCardStyle }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 style={{ margin: 0, fontSize: '22px', color: palette.textPrimary }}>Pārskats</h2>
@@ -507,9 +697,124 @@ export default function AdminReportsPage() {
             </>
           ) : null}
         </div>
-      </section>
+      </section>}
 
-      <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {activeTab === 'users' && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ ...sectionCardStyle }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '22px', color: palette.textPrimary }}>Lietotāji</h2>
+              <button
+                type="button"
+                onClick={loadUsers}
+                className="spotz-btn spotz-btn--ghost"
+                style={{ padding: '8px 14px', borderRadius: radii.pill, fontSize: '14px' }}
+              >
+                Atsvaidzināt
+              </button>
+            </div>
+
+            {usersError ? (
+              <div style={{ padding: '12px 16px', borderRadius: radii.md, background: palette.dangerSoft, color: palette.danger }}>
+                {usersError}
+              </div>
+            ) : null}
+
+            {usersLoading ? (
+              <p style={{ margin: 0, color: palette.textSecondary }}>Notiek ielāde…</p>
+            ) : users.length === 0 ? (
+              <p style={{ margin: 0, color: palette.textSecondary }}>Nav lietotāju.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {users.map((user) => (
+                  <div key={user.id} style={{ ...rowStyle }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontWeight: 600, color: palette.textPrimary }}>{user.username}</span>
+                      <span style={{ fontSize: '13px', color: palette.textMuted }}>
+                        {user.role === 'admin' ? 'Administrators' : 'Lietotājs'} · {formatDateTime(user.created_at)}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleChangeUserRole(user.id, user.role)}
+                        disabled={processingUserId === user.id}
+                        className="spotz-btn spotz-btn--outline"
+                        style={{ padding: '7px 14px', borderRadius: radii.md, fontSize: '13px' }}
+                      >
+                        {user.role === 'admin' ? 'Noņemt adminu' : 'Padarīt par adminu'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteUser(user.id, user.username)}
+                        disabled={processingUserId === user.id}
+                        className="spotz-btn spotz-btn--danger"
+                        style={{ padding: '7px 14px', borderRadius: radii.md, fontSize: '13px' }}
+                      >
+                        Dzēst
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {activeTab === 'spots' && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ ...sectionCardStyle }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '22px', color: palette.textPrimary }}>Visi spoti</h2>
+              <button
+                type="button"
+                onClick={loadAdminSpots}
+                className="spotz-btn spotz-btn--ghost"
+                style={{ padding: '8px 14px', borderRadius: radii.pill, fontSize: '14px' }}
+              >
+                Atsvaidzināt
+              </button>
+            </div>
+
+            {adminSpotsError ? (
+              <div style={{ padding: '12px 16px', borderRadius: radii.md, background: palette.dangerSoft, color: palette.danger }}>
+                {adminSpotsError}
+              </div>
+            ) : null}
+
+            {adminSpotsLoading ? (
+              <p style={{ margin: 0, color: palette.textSecondary }}>Notiek ielāde…</p>
+            ) : adminSpots.length === 0 ? (
+              <p style={{ margin: 0, color: palette.textSecondary }}>Nav spotu.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {adminSpots.map((spot) => (
+                  <div key={spot.id} style={{ ...rowStyle }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontWeight: 600, color: palette.textPrimary }}>{spot.name}</span>
+                      <span style={{ fontSize: '13px', color: palette.textMuted }}>
+                        {spot.owner} · {spot.status === 'public' ? 'Publisks' : 'Privāts'} · {formatDateTime(spot.created_at)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAdminSpot(spot.id, spot.name)}
+                      disabled={processingSpotId === spot.id}
+                      className="spotz-btn spotz-btn--danger"
+                      style={{ padding: '7px 14px', borderRadius: radii.md, fontSize: '13px' }}
+                    >
+                      Dzēst
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {activeTab === 'reports' && <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ ...sectionCardStyle }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 style={{ margin: 0, fontSize: '22px', color: palette.textPrimary }}>Ziņojumu rinda</h2>
@@ -660,9 +965,9 @@ export default function AdminReportsPage() {
             </div>
           )}
         </div>
-      </section>
+      </section>}
 
-      <section style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '32px' }}>
+      {activeTab === 'moderation' && <section style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '32px' }}>
         <div style={{ ...sectionCardStyle }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 style={{ margin: 0, fontSize: '22px', color: palette.textPrimary }}>Moderācijas rinda</h2>
@@ -751,7 +1056,7 @@ export default function AdminReportsPage() {
             </div>
           )}
         </div>
-      </section>
+      </section>}
     </main>
   );
 }

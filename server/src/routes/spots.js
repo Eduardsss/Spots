@@ -1,7 +1,7 @@
 import express from 'express'
-import jwt from 'jsonwebtoken'
 import { supabase } from '../db.js'
 import authMiddleware from '../middleware/auth.js'
+import optionalAuth from '../middleware/optionalAuth.js'
 import { uploadImagesIfBase64, uploadImageIfBase64 } from '../upload.js'
 import {
   validateSpotName,
@@ -14,21 +14,6 @@ import {
 } from '../validate.js'
 
 const router = express.Router()
-
-const optionalAuth = (req, res, next) => {
-  const authHeader = req.headers.authorization
-  if (!authHeader) return next()
-  if (!authHeader.startsWith('Bearer ')) return next()
-  const token = authHeader.substring(7)
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET)
-    const { id, username, role } = decoded
-    if (id && username && role) req.user = { id, username, role }
-  } catch {
-    req.user = undefined
-  }
-  return next()
-}
 
 const SPOT_SELECT = `
   id, user_id, name, description, image, lat, lng, status, created_at,
@@ -73,17 +58,31 @@ async function fetchUserSets(userId, spotIds) {
 }
 
 async function upsertTags(spotId, tags) {
-  for (const tagName of tags.slice(0, 10)) {
-    if (validateTagName(tagName)) continue
-    const normalized = tagName.trim().toLowerCase()
-    if (!normalized) continue
-    let { data: tag } = await supabase.from('tags').select('id').eq('name', normalized).single()
-    if (!tag) {
-      const { data: newTag } = await supabase.from('tags').insert({ name: normalized }).select('id').single()
-      tag = newTag
-    }
-    if (tag) await supabase.from('spot_tags').upsert({ spot_id: spotId, tag_id: tag.id }, { ignoreDuplicates: true })
-  }
+  const normalized = tags
+    .slice(0, 10)
+    .filter((t) => !validateTagName(t))
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean)
+
+  if (!normalized.length) return
+
+  await supabase
+    .from('tags')
+    .upsert(normalized.map((name) => ({ name })), { onConflict: 'name', ignoreDuplicates: true })
+
+  const { data: tagRows } = await supabase
+    .from('tags')
+    .select('id')
+    .in('name', normalized)
+
+  if (!tagRows?.length) return
+
+  await supabase
+    .from('spot_tags')
+    .upsert(
+      tagRows.map((t) => ({ spot_id: spotId, tag_id: t.id })),
+      { onConflict: 'spot_id,tag_id', ignoreDuplicates: true }
+    )
 }
 
 // GET /spots/highlights
