@@ -86,7 +86,8 @@ export default function Header() {
     { path: '/public', label: 'Publiskie spoti' },
     { path: '/myspots', label: 'Mani spoti' },
     { path: '/collections', label: 'Kolekcijas' },
-  ], []);
+    ...(user?.role === 'admin' ? [{ path: '/admin', label: 'Admin' }] : []),
+  ], [user?.role]);
 
   const handleLogout = async () => {
     try {
