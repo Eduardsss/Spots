@@ -20,33 +20,44 @@ export type SpotFormSubmission = SpotFormValues & {
 const MAX_IMAGE_DIMENSION = 1920;
 const IMAGE_QUALITY = 0.82;
 
-function compressImage(file: File): Promise<string> {
+function compressLoaded(img: HTMLImageElement, dataUrl: string): string {
+  let { width, height } = img;
+  if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+    if (width >= height) {
+      height = Math.round((height * MAX_IMAGE_DIMENSION) / width);
+      width = MAX_IMAGE_DIMENSION;
+    } else {
+      width = Math.round((width * MAX_IMAGE_DIMENSION) / height);
+      height = MAX_IMAGE_DIMENSION;
+    }
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return dataUrl;
+  ctx.drawImage(img, 0, 0, width, height);
+  const compressed = canvas.toDataURL('image/jpeg', IMAGE_QUALITY);
+  return compressed.length < dataUrl.length ? compressed : dataUrl;
+}
+
+function processImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error ?? new Error('Neizdevās nolasīt failu'));
     reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!dataUrl) { reject(new Error('Tukšs faila saturs')); return; }
       const img = new Image();
-      img.onerror = () => reject(new Error('Neizdevās ielādēt attēlu'));
+      img.onerror = () => resolve(dataUrl);
       img.onload = () => {
-        let { width, height } = img;
-        if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
-          if (width >= height) {
-            height = Math.round((height * MAX_IMAGE_DIMENSION) / width);
-            width = MAX_IMAGE_DIMENSION;
-          } else {
-            width = Math.round((width * MAX_IMAGE_DIMENSION) / height);
-            height = MAX_IMAGE_DIMENSION;
-          }
+        try {
+          resolve(compressLoaded(img, dataUrl));
+        } catch {
+          resolve(dataUrl);
         }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { reject(new Error('Canvas not supported')); return; }
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', IMAGE_QUALITY));
       };
-      img.src = typeof reader.result === 'string' ? reader.result : '';
+      img.src = dataUrl;
     };
     reader.readAsDataURL(file);
   });
@@ -85,6 +96,7 @@ export function SpotFormModal({
     changed: false,
   });
   const [tags, setTags] = useState<string[]>([...initialValues.tags]);
+  const [imageError, setImageError] = useState('');
   const tagLimit = maxTags ?? MAX_TAGS_PER_SPOT;
 
   useEffect(() => {
@@ -98,15 +110,18 @@ export function SpotFormModal({
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
     if (!files.length) return;
+    setImageError('');
     try {
-      const base64List = await Promise.all(files.map((file) => compressImage(file)));
+      const base64List = await Promise.all(files.map((file) => processImage(file)));
       setGalleryState((current) => {
         const combined = [...current.previews, ...base64List];
         return { previews: combined.slice(0, 6), changed: true };
       });
     } catch (err) {
-      console.error('Failed to convert image', err);
+      setImageError('Neizdevās pievienot attēlu. Mēģini citu failu.');
+      console.error('Failed to process image', err);
     }
   };
 
@@ -355,6 +370,9 @@ export function SpotFormModal({
               Noņemt visus
             </button>
           </div>
+          {imageError ? (
+            <p style={{ margin: 0, fontSize: '13px', color: palette.danger }}>{imageError}</p>
+          ) : null}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
