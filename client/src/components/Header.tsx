@@ -23,7 +23,7 @@ function getInitialTheme(): Theme {
 export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLElement>(null);
 
   const [user, setUser] = useState<AuthUser | null>(() => {
     if (typeof window === 'undefined') return null;
@@ -131,6 +131,7 @@ export default function Header() {
       `}</style>
 
       <header
+        ref={menuRef}
         style={{
           position: 'sticky',
           top: 0,
@@ -220,7 +221,7 @@ export default function Header() {
           </div>
 
           {/* Mobile: right side */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }} ref={menuRef}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
             {/* Mobile avatar when logged in */}
             <div className="spotz-hamburger" style={{ alignItems: 'center', gap: '8px' }}>
               {user && (
