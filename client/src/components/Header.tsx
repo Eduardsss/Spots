@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import ProfilePopup from './ProfilePopup';
 import { apiFetch } from '../lib/api';
@@ -23,7 +23,6 @@ function getInitialTheme(): Theme {
 export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
-  const menuRef = useRef<HTMLElement>(null);
 
   const [user, setUser] = useState<AuthUser | null>(() => {
     if (typeof window === 'undefined') return null;
@@ -70,18 +69,7 @@ export default function Header() {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
-  useEffect(() => {
-    if (!isMobileMenuOpen) return undefined;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setIsMobileMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isMobileMenuOpen]);
-
-  const navLinks = useMemo(() => [
+const navLinks = useMemo(() => [
     { path: '/map', label: 'Karte' },
     { path: '/public', label: 'Publiskie spoti' },
     { path: '/myspots', label: 'Mani spoti' },
@@ -131,7 +119,6 @@ export default function Header() {
       `}</style>
 
       <header
-        ref={menuRef}
         style={{
           position: 'sticky',
           top: 0,
@@ -265,9 +252,19 @@ export default function Header() {
 
         {/* Mobile dropdown menu */}
         {isMobileMenuOpen && (
+          // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+          <div
+            aria-hidden="true"
+            onClick={() => setIsMobileMenuOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+          />
+        )}
+        {isMobileMenuOpen && (
           <div
             className="spotz-mobile-menu"
             style={{
+              position: 'relative',
+              zIndex: 101,
               flexDirection: 'column',
               borderTop: `1px solid ${palette.border}`,
               background: palette.surfaceGlass,
@@ -290,7 +287,7 @@ export default function Header() {
             <div style={{ borderTop: `1px solid ${palette.border}`, marginTop: '8px', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <button
                 type="button"
-                onClick={toggleTheme}
+                onClick={() => { toggleTheme(); setIsMobileMenuOpen(false); }}
                 className="spotz-btn spotz-btn--outline"
                 style={{ width: '100%', padding: '10px', fontSize: '14px' }}
               >
