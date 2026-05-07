@@ -17,47 +17,16 @@ export type SpotFormSubmission = SpotFormValues & {
   imagesChanged: boolean;
 };
 
-const MAX_IMAGE_DIMENSION = 1920;
-const IMAGE_QUALITY = 0.82;
-
-function compressLoaded(img: HTMLImageElement, dataUrl: string): string {
-  let { width, height } = img;
-  if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
-    if (width >= height) {
-      height = Math.round((height * MAX_IMAGE_DIMENSION) / width);
-      width = MAX_IMAGE_DIMENSION;
-    } else {
-      width = Math.round((width * MAX_IMAGE_DIMENSION) / height);
-      height = MAX_IMAGE_DIMENSION;
-    }
-  }
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return dataUrl;
-  ctx.drawImage(img, 0, 0, width, height);
-  const compressed = canvas.toDataURL('image/jpeg', IMAGE_QUALITY);
-  return compressed.length < dataUrl.length ? compressed : dataUrl;
-}
-
 function processImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error ?? new Error('Neizdevās nolasīt failu'));
     reader.onload = () => {
-      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-      if (!dataUrl) { reject(new Error('Tukšs faila saturs')); return; }
-      const img = new Image();
-      img.onerror = () => resolve(dataUrl);
-      img.onload = () => {
-        try {
-          resolve(compressLoaded(img, dataUrl));
-        } catch {
-          resolve(dataUrl);
-        }
-      };
-      img.src = dataUrl;
+      if (typeof reader.result === 'string' && reader.result) {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Neizdevās nolasīt attēlu'));
+      }
     };
     reader.readAsDataURL(file);
   });
