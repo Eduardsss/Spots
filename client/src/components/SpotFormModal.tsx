@@ -66,6 +66,13 @@ export function SpotFormModal({
   });
   const [tags, setTags] = useState<string[]>([...initialValues.tags]);
   const [imageError, setImageError] = useState('');
+  const [slowSave, setSlowSave] = useState(false);
+
+  useEffect(() => {
+    if (!submitting) { setSlowSave(false); return undefined; }
+    const t = setTimeout(() => setSlowSave(true), 8000);
+    return () => clearTimeout(t);
+  }, [submitting]);
   const tagLimit = maxTags ?? MAX_TAGS_PER_SPOT;
 
   useEffect(() => {
@@ -357,6 +364,12 @@ export function SpotFormModal({
             <p style={{ margin: 0, fontSize: '13px', color: palette.danger }}>{imageError}</p>
           ) : null}
         </div>
+
+        {slowSave && (
+          <p style={{ margin: 0, fontSize: '13px', color: palette.textMuted, textAlign: 'center' }}>
+            Serveris pamostas, lūdzu uzgaidiet (var aizņemt līdz 60 sek)…
+          </p>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
           <button
