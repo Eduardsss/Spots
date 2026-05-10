@@ -1,9 +1,22 @@
+import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import Header from '../components/Header';
 import { palette } from '../styles/theme';
 
+const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
+  (import.meta.env.DEV ? 'http://localhost:3000' : '');
+
+const PING_INTERVAL_MS = 14 * 60 * 1000;
+
 export default function MainLayout() {
-  // Kopējais izkārtojums ar galveni un vietu bērnu lapām.
+  useEffect(() => {
+    const ping = () => fetch(`${API_BASE_URL}/health`).catch(() => {});
+    void ping();
+    const id = setInterval(() => void ping(), PING_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <div
       style={{
