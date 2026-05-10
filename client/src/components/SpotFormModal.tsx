@@ -1,5 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
-import { SpotGallery } from './SpotGallery';
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { TagInput } from './TagInput';
 import { palette, radii } from '../styles/theme';
 import { MAX_TAGS_PER_SPOT } from '../lib/tags';
@@ -57,6 +56,7 @@ export function SpotFormModal({
   availableTags: string[];
   maxTags?: number;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(initialValues.name);
   const [description, setDescription] = useState(initialValues.description);
   const [status, setStatus] = useState<'public' | 'private'>(initialValues.status);
@@ -326,11 +326,23 @@ export function SpotFormModal({
             </div>
           )}
 
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+          />
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <label className="spotz-btn spotz-btn--outline" style={{ padding: '10px 18px' }}>
+            <button
+              type="button"
+              className="spotz-btn spotz-btn--outline"
+              style={{ padding: '10px 18px' }}
+              onClick={() => fileInputRef.current?.click()}
+            >
               Pievienot attēlus
-              <input type="file" accept="image/*" multiple onChange={handleFileChange} style={{ display: 'none' }} />
-            </label>
+            </button>
             <button
               type="button"
               onClick={handleClearImages}
