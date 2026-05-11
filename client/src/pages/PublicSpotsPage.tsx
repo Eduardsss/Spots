@@ -243,23 +243,7 @@ function SpotCard({
             >
               Kartē
             </button>
-            <button
-              type="button"
-              onClick={() => onShare(spot)}
-              className="spotz-btn spotz-btn--ghost"
-              style={{ padding: '5px 11px', fontSize: '13px', borderRadius: radii.md }}
-            >
-              Kopēt
-            </button>
-            <button
-              type="button"
-              onClick={() => onSaveToCollection(spot)}
-              className="spotz-btn spotz-btn--ghost"
-              style={{ padding: '5px 11px', fontSize: '13px', borderRadius: radii.md }}
-            >
-              Saglabāt
-            </button>
-            {hasMoreActions ? (
+            {(true) ? (
               <div style={{ position: 'relative' }}>
                 <button
                   type="button"
@@ -289,6 +273,22 @@ function SpotCard({
                       minWidth: '148px',
                     }}
                   >
+                    <button
+                      type="button"
+                      onClick={() => { onShare(spot); setShowMoreMenu(false); }}
+                      className="spotz-btn"
+                      style={{ justifyContent: 'flex-start', padding: '8px 12px', fontSize: '13px', borderRadius: radii.sm, background: 'transparent', border: 'none', fontWeight: 500, color: palette.textPrimary }}
+                    >
+                      Kopēt saiti
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { onSaveToCollection(spot); setShowMoreMenu(false); }}
+                      className="spotz-btn"
+                      style={{ justifyContent: 'flex-start', padding: '8px 12px', fontSize: '13px', borderRadius: radii.sm, background: 'transparent', border: 'none', fontWeight: 500, color: palette.textPrimary }}
+                    >
+                      Saglabāt kolekcijā
+                    </button>
                     {canReport ? (
                       <button
                         type="button"
@@ -795,8 +795,9 @@ export default function PublicSpotsPage() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
               gap: '24px',
+              alignItems: 'start',
             }}
           >
             {spots.map((spot) => (
