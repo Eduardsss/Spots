@@ -85,12 +85,10 @@ function SpotCard({
   highlighted = false,
   initiallyOpenComments = false,
 }: SpotCardProps) {
-  // Vietējais stāvoklis lai kontrolētu komentāru atvēršanu un citu interaktīvo loģiku.
   const [showComments, setShowComments] = useState(initiallyOpenComments);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const canComment = Boolean(currentUser);
-  const toggleLabel = showComments ? 'Slēpt komentārus' : 'Skatīt komentārus';
-  const isAdminManagingOther =
-    currentUser?.role === 'admin' && currentUser.id !== spot.user_id;
+  const isAdminManagingOther = currentUser?.role === 'admin' && currentUser.id !== spot.user_id;
   const galleryImages =
     Array.isArray(spot.images) && spot.images.length
       ? spot.images
@@ -98,16 +96,21 @@ function SpotCard({
       ? [spot.image]
       : [];
   const canReport = Boolean(currentUser) && currentUser!.id !== spot.user_id;
+  const hasMoreActions = canReport || canDelete;
 
   useEffect(() => {
-    if (initiallyOpenComments) {
-      setShowComments(true);
-    }
+    if (initiallyOpenComments) setShowComments(true);
   }, [initiallyOpenComments]);
 
-    // Kartīte apvieno attēlu galeriju, aprakstu un darbību pogas vienā blokā.
-    return (
-      <article
+  useEffect(() => {
+    if (!showMoreMenu) return;
+    const close = () => setShowMoreMenu(false);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [showMoreMenu]);
+
+  return (
+    <article
       id={`spot-card-${spot.id}`}
       className="spotz-card"
       style={{
@@ -121,48 +124,57 @@ function SpotCard({
         transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
       }}
     >
-      <div style={{ borderBottom: `1px solid ${palette.border}` }}>
-        <SpotGallery images={galleryImages} title={spot.name} height={220} />
-      </div>
+      <SpotGallery images={galleryImages} title={spot.name} height={240} />
 
       <div
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px',
-          padding: '20px 22px 24px',
+          gap: '14px',
+          padding: '18px 20px 20px',
           flex: 1,
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <h3
             style={{
               margin: 0,
-              fontSize: '20px',
+              fontSize: '18px',
+              fontWeight: 700,
               color: palette.textPrimary,
               letterSpacing: '-0.01em',
+              lineHeight: 1.3,
             }}
           >
             {spot.name}
           </h3>
           {spot.description ? (
-            <p style={{ margin: 0, color: palette.textSecondary, lineHeight: 1.6 }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: '14px',
+                color: palette.textSecondary,
+                lineHeight: 1.6,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
               {spot.description}
             </p>
-          ) : (
-            <p style={{ margin: 0, color: palette.textMuted, fontStyle: 'italic' }}>
-              Apraksts nav pievienots.
-            </p>
-          )}
+          ) : null}
         </div>
 
         {spot.tags.length ? (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
             {spot.tags.map((tag) => (
               <span
                 key={tag}
                 className="spotz-chip"
                 style={{
+                  fontSize: '12px',
+                  padding: '3px 10px',
                   background: palette.surfaceAlt,
                   color: palette.accentStrong,
                   border: `1px solid ${palette.border}`,
@@ -177,75 +189,28 @@ function SpotCard({
         <div
           style={{
             display: 'flex',
-            justifyContent: 'space-between',
             alignItems: 'center',
-            gap: '12px',
-            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            gap: '8px',
+            paddingTop: '12px',
+            borderTop: `1px solid ${palette.border}`,
+            marginTop: 'auto',
           }}
         >
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={() => onShowOnMap(spot)}
-              className="spotz-btn spotz-btn--outline"
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span
               style={{
-                padding: '8px 16px',
-                borderRadius: radii.md,
-                border: `1px solid ${palette.border}`,
-                background: palette.surfaceAlt,
-                color: palette.accentStrong,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '14px',
+                fontWeight: 600,
+                color: palette.textMuted,
               }}
             >
-              Parādīt kartē
-            </button>
-            <button
-              type="button"
-              onClick={() => onShare(spot)}
-              className="spotz-btn spotz-btn--ghost"
-              style={{ padding: '8px 14px', borderRadius: radii.md }}
-            >
-              Kopēt saiti
-            </button>
-            <button
-              type="button"
-              onClick={() => onSaveToCollection(spot)}
-              className="spotz-btn spotz-btn--outline"
-              style={{
-                padding: '8px 16px',
-                borderRadius: radii.md,
-                border: `1px solid ${palette.border}`,
-                background: palette.surfaceAlt,
-                color: palette.accentStrong,
-              }}
-            >
-              Saglabāt kolekcijā
-            </button>
-            {canReport ? (
-              <button
-                type="button"
-                onClick={() => onReport(spot)}
-                className="spotz-btn spotz-btn--outline"
-                style={{
-                  padding: '8px 14px',
-                  borderRadius: radii.md,
-                  borderColor: palette.danger,
-                  color: palette.danger,
-                }}
-              >
-                Ziņot
-              </button>
-            ) : null}
-          </div>
-
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <div
-              className="spotz-chip"
-              style={{ background: palette.accentGradientSoft, color: palette.accentStrong }}
-            >
-              <span aria-hidden="true">❤️</span>
+              <span aria-hidden="true" style={{ fontSize: '13px' }}>❤</span>
               <span>{spot.likesCount}</span>
-            </div>
-
+            </span>
             {canLike ? (
               <button
                 type="button"
@@ -253,70 +218,137 @@ function SpotCard({
                 disabled={isDeleting}
                 className="spotz-btn"
                 style={{
-                  padding: '8px 18px',
+                  padding: '5px 14px',
+                  fontSize: '13px',
                   borderRadius: radii.pill,
-                  border: `1px solid ${palette.border}`,
                   background: spot.likedByCurrentUser
-                    ? 'linear-gradient(135deg, rgba(248, 113, 113, 0.28), rgba(239, 68, 68, 0.35))'
+                    ? 'rgba(220,38,38,0.12)'
                     : palette.surfaceAlt,
-                  color: palette.danger,
-                  opacity: isDeleting ? 0.6 : 1,
-                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                  color: spot.likedByCurrentUser ? palette.danger : palette.textSecondary,
+                  border: `1px solid ${spot.likedByCurrentUser ? 'rgba(220,38,38,0.3)' : palette.border}`,
+                  fontWeight: 600,
                 }}
               >
-                {spot.likedByCurrentUser ? 'Noņemt patīk' : 'Patīk'}
+                {spot.likedByCurrentUser ? 'Noņemt' : 'Patīk'}
               </button>
             ) : null}
+          </div>
 
-            {canDelete ? (
-              <button
-                type="button"
-                onClick={() => onDelete(spot)}
-                disabled={isDeleting}
-                className="spotz-btn spotz-btn--danger"
-                style={{ padding: '8px 16px', borderRadius: radii.md, opacity: isDeleting ? 0.6 : 1 }}
-              >
-                {isDeleting
-                  ? 'Dzēšam…'
-                  : isAdminManagingOther
-                  ? 'Dzēst (admin)'
-                  : 'Dzēst'}
-              </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <button
+              type="button"
+              onClick={() => onShowOnMap(spot)}
+              className="spotz-btn spotz-btn--ghost"
+              style={{ padding: '5px 11px', fontSize: '13px', borderRadius: radii.md }}
+            >
+              Kartē
+            </button>
+            <button
+              type="button"
+              onClick={() => onShare(spot)}
+              className="spotz-btn spotz-btn--ghost"
+              style={{ padding: '5px 11px', fontSize: '13px', borderRadius: radii.md }}
+            >
+              Kopēt
+            </button>
+            <button
+              type="button"
+              onClick={() => onSaveToCollection(spot)}
+              className="spotz-btn spotz-btn--ghost"
+              style={{ padding: '5px 11px', fontSize: '13px', borderRadius: radii.md }}
+            >
+              Saglabāt
+            </button>
+            {hasMoreActions ? (
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setShowMoreMenu((v) => !v); }}
+                  className="spotz-btn spotz-btn--ghost"
+                  style={{ padding: '5px 10px', fontSize: '15px', borderRadius: radii.md, lineHeight: 1 }}
+                  aria-label="Vairāk darbību"
+                >
+                  ···
+                </button>
+                {showMoreMenu ? (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      bottom: 'calc(100% + 6px)',
+                      background: palette.surface,
+                      border: `1px solid ${palette.border}`,
+                      borderRadius: radii.md,
+                      padding: '6px',
+                      boxShadow: shadows.medium,
+                      zIndex: 10,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '2px',
+                      minWidth: '148px',
+                    }}
+                  >
+                    {canReport ? (
+                      <button
+                        type="button"
+                        onClick={() => { onReport(spot); setShowMoreMenu(false); }}
+                        className="spotz-btn"
+                        style={{
+                          justifyContent: 'flex-start',
+                          padding: '8px 12px',
+                          fontSize: '13px',
+                          borderRadius: radii.sm,
+                          color: palette.danger,
+                          background: 'transparent',
+                          border: 'none',
+                          fontWeight: 500,
+                        }}
+                      >
+                        Ziņot
+                      </button>
+                    ) : null}
+                    {canDelete ? (
+                      <button
+                        type="button"
+                        onClick={() => { onDelete(spot); setShowMoreMenu(false); }}
+                        disabled={isDeleting}
+                        className="spotz-btn spotz-btn--danger"
+                        style={{
+                          justifyContent: 'flex-start',
+                          padding: '8px 12px',
+                          fontSize: '13px',
+                          borderRadius: radii.sm,
+                          fontWeight: 500,
+                        }}
+                      >
+                        {isDeleting ? 'Dzēšam…' : isAdminManagingOther ? 'Dzēst (admin)' : 'Dzēst'}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </div>
 
-        <div
+        <button
+          type="button"
+          onClick={() => setShowComments((v) => !v)}
+          className="spotz-btn spotz-btn--ghost"
           style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            gap: '8px',
+            alignSelf: 'flex-start',
+            padding: '5px 12px',
+            fontSize: '13px',
+            borderRadius: radii.md,
+            color: palette.textSecondary,
           }}
         >
-          <button
-            type="button"
-            onClick={() => setShowComments((value) => !value)}
-            className="spotz-btn spotz-btn--outline"
-            style={{
-              padding: '8px 14px',
-              borderRadius: radii.md,
-              border: `1px solid ${palette.border}`,
-              background: palette.surfaceAlt,
-              color: palette.textSecondary,
-            }}
-          >
-            {toggleLabel}
-          </button>
-        </div>
+          {showComments ? '▲ Slēpt komentārus' : '▼ Skatīt komentārus'}
+        </button>
 
         {showComments ? (
-          <div
-            style={{
-              borderTop: `1px solid ${palette.border}`,
-              paddingTop: '16px',
-            }}
-          >
+          <div style={{ borderTop: `1px solid ${palette.border}`, paddingTop: '16px' }}>
             <SpotComments
               spotId={spot.id}
               currentUser={currentUser}
@@ -624,7 +656,7 @@ export default function PublicSpotsPage() {
   return (
     <main
       style={{
-        padding: 'clamp(32px, 8vw, 64px) clamp(16px, 5vw, 72px) 88px',
+        padding: '64px clamp(16px, 5vw, 72px) 88px',
         background: palette.background,
         minHeight: 'calc(100vh - 72px)',
         transition: 'background var(--transition-slow)',
@@ -693,7 +725,7 @@ export default function PublicSpotsPage() {
             />
           </label>
 
-          <label style={{ flex: '1 1 160px', maxWidth: '240px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <label style={{ width: '200px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <span style={{ fontSize: '14px', color: palette.textSecondary, fontWeight: 600 }}>Kārtot pēc</span>
             <select
               value={sort}
