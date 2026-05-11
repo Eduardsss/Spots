@@ -8,7 +8,6 @@ type SpotGalleryProps = {
 };
 
 function sanitizeImages(images: string[]): string[] {
-  // Atsijājam tukšas vai nederīgas URL vērtības, lai nerādītu bojātus attēlus.
   return images.filter((image) => typeof image === 'string' && image.trim().length > 0);
 }
 
@@ -17,67 +16,40 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [isHoveringLightboxImage, setIsHoveringLightboxImage] = useState(false);
 
   useEffect(() => {
-    // Ja saraksts mainās, vienmēr sāk rādīt pirmo attēlu.
     setActiveIndex(0);
     setLightboxIndex(0);
   }, [normalized.length, normalized[0]]);
 
   const openLightbox = useCallback(
     (index: number) => {
-      if (!normalized.length) {
-        return;
-      }
+      if (!normalized.length) return;
       setLightboxIndex(Math.min(index, normalized.length - 1));
       setLightboxOpen(true);
     },
     [normalized.length],
   );
 
-  const closeLightbox = useCallback(() => {
-    setLightboxOpen(false);
-  }, []);
+  const closeLightbox = useCallback(() => setLightboxOpen(false), []);
 
   const showNext = useCallback(() => {
-    setLightboxIndex((current) => {
-      if (!normalized.length) {
-        return 0;
-      }
-      return (current + 1) % normalized.length;
-    });
+    setLightboxIndex((current) => (current + 1) % normalized.length);
   }, [normalized.length]);
 
   const showPrevious = useCallback(() => {
-    setLightboxIndex((current) => {
-      if (!normalized.length) {
-        return 0;
-      }
-      return (current - 1 + normalized.length) % normalized.length;
-    });
+    setLightboxIndex((current) => (current - 1 + normalized.length) % normalized.length);
   }, [normalized.length]);
 
   useEffect(() => {
-    if (!lightboxOpen) {
-      setIsHoveringLightboxImage(false);
-      return;
-    }
-
+    if (!lightboxOpen) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeLightbox();
-      } else if (event.key === 'ArrowRight') {
-        showNext();
-      } else if (event.key === 'ArrowLeft') {
-        showPrevious();
-      }
+      if (event.key === 'Escape') closeLightbox();
+      else if (event.key === 'ArrowRight') showNext();
+      else if (event.key === 'ArrowLeft') showPrevious();
     };
-
     window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [lightboxOpen, closeLightbox, showNext, showPrevious]);
 
   if (normalized.length === 0) {
@@ -106,6 +78,7 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {/* Galvenais attēls */}
       <div
         style={{
           width: '100%',
@@ -135,6 +108,7 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
         />
       </div>
 
+      {/* Sīktēli (ja vairāk par 1 attēlu) */}
       {normalized.length > 1 ? (
         <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
           {normalized.map((image, index) => {
@@ -143,9 +117,7 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
               <button
                 key={`${image}-${index}`}
                 type="button"
-                onClick={() => {
-                  setActiveIndex(index);
-                }}
+                onClick={() => setActiveIndex(index)}
                 style={{
                   width: 72,
                   height: 72,
@@ -170,9 +142,9 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
         </div>
       ) : null}
 
+      {/* Lightbox */}
       {lightboxOpen && normalized.length ? (
         <div
-          className="spotz-lightbox-overlay"
           role="dialog"
           aria-modal="true"
           aria-label="Skatīt attēlu"
@@ -180,29 +152,32 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.7)',
+            backgroundColor: 'rgba(15, 23, 42, 0.85)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 2000,
-            padding: '24px',
+            padding: '16px',
           }}
         >
+          {/* Aizvērt ar klikšķi ārpus attēla — bet ne uz pogas/attēla */}
           <div
             style={{
               position: 'relative',
-              maxWidth: 'min(90vw, 960px)',
-              maxHeight: '90vh',
+              maxWidth: 'min(92vw, 960px)',
+              maxHeight: '88vh',
               borderRadius: radii.xl,
               overflow: 'hidden',
-              boxShadow: shadows.medium,
+              boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
               border: `1px solid ${palette.border}`,
               background: palette.surface,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
             onClick={(event) => event.stopPropagation()}
-            onMouseEnter={() => setIsHoveringLightboxImage(true)}
-            onMouseLeave={() => setIsHoveringLightboxImage(false)}
           >
+            {/* Aizvērt poga */}
             <button
               type="button"
               onClick={closeLightbox}
@@ -210,11 +185,14 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
               className="spotz-btn spotz-btn--ghost"
               style={{
                 position: 'absolute',
-                top: 12,
-                right: 12,
+                top: 10,
+                right: 10,
                 zIndex: 1,
                 borderRadius: radii.pill,
                 padding: '6px 12px',
+                background: 'rgba(15, 23, 42, 0.6)',
+                color: 'white',
+                lineHeight: 1,
               }}
             >
               ×
@@ -226,14 +204,12 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
               style={{
                 display: 'block',
                 maxWidth: '100%',
-                maxHeight: '100%',
+                maxHeight: '88vh',
                 objectFit: 'contain',
-                backgroundColor: palette.surfaceAlt,
-                transform: isHoveringLightboxImage ? 'scale(1.015)' : 'scale(1)',
-                transition: 'transform 160ms ease-in-out',
               }}
             />
 
+            {/* Navigācija (ja vairāk par 1 attēlu) */}
             {normalized.length > 1 ? (
               <div
                 style={{
@@ -251,10 +227,12 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
                   aria-label="Iepriekšējais attēls"
                   className="spotz-btn spotz-btn--ghost"
                   style={{
-                    marginLeft: 12,
+                    marginLeft: 10,
                     pointerEvents: 'auto',
                     borderRadius: radii.pill,
                     padding: '10px 14px',
+                    background: 'rgba(15, 23, 42, 0.5)',
+                    color: 'white',
                   }}
                 >
                   ‹
@@ -265,10 +243,12 @@ export function SpotGallery({ images, title, height = 220 }: SpotGalleryProps) {
                   aria-label="Nākamais attēls"
                   className="spotz-btn spotz-btn--ghost"
                   style={{
-                    marginRight: 12,
+                    marginRight: 10,
                     pointerEvents: 'auto',
                     borderRadius: radii.pill,
                     padding: '10px 14px',
+                    background: 'rgba(15, 23, 42, 0.5)',
+                    color: 'white',
                   }}
                 >
                   ›
