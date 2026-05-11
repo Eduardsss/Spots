@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { TagInput } from './TagInput';
 import { palette, radii } from '../styles/theme';
 import { MAX_TAGS_PER_SPOT } from '../lib/tags';
@@ -56,7 +56,6 @@ export function SpotFormModal({
   availableTags: string[];
   maxTags?: number;
 }) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(initialValues.name);
   const [description, setDescription] = useState(initialValues.description);
   const [status, setStatus] = useState<'public' | 'private'>(initialValues.status);
@@ -333,23 +332,31 @@ export function SpotFormModal({
             </div>
           )}
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleFileChange}
-            style={{ display: 'none' }}
-          />
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="spotz-btn spotz-btn--outline"
-              style={{ padding: '10px 18px' }}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              Pievienot attēlus
-            </button>
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <button
+                type="button"
+                className="spotz-btn spotz-btn--outline"
+                style={{ padding: '10px 18px' }}
+              >
+                Pievienot attēlus
+              </button>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFileChange}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  opacity: 0,
+                  cursor: 'pointer',
+                  width: '100%',
+                  height: '100%',
+                  fontSize: 0,
+                }}
+              />
+            </div>
             <button
               type="button"
               onClick={handleClearImages}
